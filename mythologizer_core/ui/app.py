@@ -3,8 +3,9 @@ load_dotenv(find_dotenv())
 
 from textual.app import App, ComposeResult
 from textual.widgets import Static, Log, Button, Input, Label
-from textual.containers import Horizontal, HorizontalGroup
-from textual import work
+from textual.containers import Horizontal, HorizontalGroup, Container
+from textual.screen import ModalScreen
+from textual import work, on
 from textual.reactive import reactive
 import asyncio
 from art import *
@@ -14,6 +15,8 @@ from typing import Optional
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+import subprocess
+import sys
 
 
 
@@ -159,6 +162,56 @@ class Body(Static):
     def compose(self) -> ComposeResult:
         yield Menu()
 
+
+
+class SetupConfirmationModal(ModalScreen[bool]):
+    """Confirmation modal for setup simulation."""
+    
+    DEFAULT_CSS = """
+    SetupConfirmationModal {
+        align: center middle;
+    }
+    
+    SetupConfirmationModal > Container {
+        width: auto;
+        height: auto;
+        border: thick $background 80%;
+        background: $surface;
+    }
+    
+    SetupConfirmationModal > Container > Label {
+        width: 100%;
+        content-align-horizontal: center;
+        margin-top: 1;
+    }
+    
+    SetupConfirmationModal > Container > Horizontal {
+        width: auto;
+        height: auto;
+    }
+    
+    SetupConfirmationModal > Container > Horizontal > Button {
+        margin: 2 4;
+    }
+    """
+    
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("⚠️  Setting up a simulation will delete the previous one.\nAre you sure you want to continue?")
+            with Horizontal():
+                yield Button("Cancel", id="cancel_setup", variant="default")
+                yield Button("Continue", id="confirm_setup", variant="error")
+    
+    @on(Button.Pressed, "#cancel_setup")
+    def cancel_setup(self) -> None:
+        """Cancel the setup."""
+        self.dismiss(False)
+    
+    @on(Button.Pressed, "#confirm_setup")
+    def confirm_setup(self) -> None:
+        """Confirm the setup."""
+        self.dismiss(True)
+
 class Menu(Static):
     """Menu widget."""
     
@@ -179,6 +232,17 @@ class Menu(Static):
             # Clear and replace content
             body.remove_children()
             body.mount(SettingsView())
+        elif event.button.id == "setup_btn":
+            # Show confirmation modal
+            self.app.push_screen(SetupConfirmationModal(), self.setup_confirmation_callback)
+    
+    def setup_confirmation_callback(self, confirmed: bool) -> None:
+        """Handle the setup confirmation result."""
+        if confirmed:
+            # TODO: Add actual setup simulation logic here
+            self.app.notify("Setup simulation started...", severity="information")
+        else:
+            self.app.notify("Setup cancelled", severity="information")
 
 class SettingsView(Static):
     """Settings view widget."""
