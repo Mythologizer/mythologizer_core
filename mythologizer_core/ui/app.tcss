@@ -7,14 +7,19 @@
 
 Button {
     background: blue;
+    border: solid white;
 }
 
 Button:focus {
-    background: rgb(53, 53, 255);
+    background: rgb(255, 255, 255);
+    border: solid blue;
+    color: blue;
 }
 
 Button:can-focus:hover {
-    background: rgb(53, 53, 255);
+    background: rgb(255, 255, 255);
+    border: solid blue;
+    color: blue;
 }
 
 Screen {
@@ -77,9 +82,6 @@ SettingsButtons {
     width: 100%;
 }
 
-.settings-buttons {
-    border: solid white;
-}
 
 .input-label {
     width: 100%;
@@ -95,7 +97,6 @@ SettingsButtons {
     margin: 2 0 2 0;
     text-align: center;
     text-style: bold;
-    border: tall white;
 }
 
 .status-wrapper {
