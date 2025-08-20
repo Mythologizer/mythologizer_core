@@ -5,11 +5,18 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "art>=6.5",
     "mythicalgebra>=0.1.0",
     "mythologizer-postgres",
     "pydantic>=2.11.7",
+    "pytest-watch>=4.2.0",
     "sentence-transformers>=5.1.0",
+    "textual>=5.3.0",
+    "textual-dev>=1.7.0",
 ]
+
+[project.scripts]
+mythologizer = "mythologizer_core.ui.app:main"
 
 [tool.uv.sources]
 mythologizer-postgres = { path = "../mythologizerDB", editable = true }
