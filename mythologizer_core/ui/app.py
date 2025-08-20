@@ -2,7 +2,7 @@ from dotenv import load_dotenv,find_dotenv
 load_dotenv(find_dotenv())
 
 from textual.app import App, ComposeResult
-from textual.widgets import Static, Log, Button
+from textual.widgets import Static, Log, Button, Input, Label
 from textual.containers import Horizontal, HorizontalGroup
 from textual import work
 from textual.reactive import reactive
@@ -12,6 +12,9 @@ from mythologizer_postgres.db import ping_db_basic
 from mythologizer_postgres.connectors import get_simulation_status
 from typing import Optional
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+
 
 
 class Header(Static):
@@ -58,16 +61,22 @@ class SecondaryHeader(Horizontal):
         """Start monitoring database connectivity in the background."""
         while True:
             try:
-                connection_status = ping_db_basic()
+                # Run database ping in a separate thread to avoid blocking
+                connection_status = await asyncio.to_thread(ping_db_basic)
                 self.is_connected = connection_status is not False
-            except Exception:
+            except Exception as e:
+                # Any error - just mark as disconnected
                 self.is_connected = False
             
             await self.update_status_display()
             
-            # If connected, update simulation status
+            # Only update simulation status if database is connected
             if self.is_connected:
-                await self.update_simulation_status()
+                try:
+                    await self.update_simulation_status()
+                except Exception:
+                    # If simulation status update fails, just continue
+                    pass
             
             await asyncio.sleep(1)
     
@@ -83,6 +92,8 @@ class SecondaryHeader(Horizontal):
             status_widget.update("Disconnected")
             # Disable the simulation buttons
             self.update_simulation_buttons(False)
+            # Clear simulation status when disconnected
+            self.clear_simulation_status()
     
     def update_simulation_buttons(self, enabled: bool) -> None:
         """Update the simulation buttons based on database connection."""
@@ -107,8 +118,8 @@ class SecondaryHeader(Horizontal):
     async def update_simulation_status(self) -> None:
         """Update simulation status when database is connected."""
         try:
-            # Get simulation status from the database
-            status = get_simulation_status()
+            # Get simulation status from the database in a separate thread
+            status = await asyncio.to_thread(get_simulation_status)
             
             # Update the reactive variables
             self.current_epoch = status['current_epoch']
@@ -121,12 +132,29 @@ class SecondaryHeader(Horizontal):
             self.query_one("#agents_display").update(f"Number of Agents: {status['n_agents']}")
             self.query_one("#myths_display").update(f"Number of Myths: {status['n_myths']}")
             self.query_one("#cultures_display").update(f"Number of Cultures: {status['n_cultures']}")
+        except Exception as e:
+            # If there's an error, keep the last known values and don't crash
+            # This prevents the app from freezing when database connection fails
+            pass
+    
+    def clear_simulation_status(self) -> None:
+        """Clear simulation status display when disconnected."""
+        try:
+            # Update the display widgets to show "-" when disconnected
+            self.query_one("#epoch_display").update("Current Epoch: -")
+            self.query_one("#agents_display").update("Number of Agents: -")
+            self.query_one("#myths_display").update("Number of Myths: -")
+            self.query_one("#cultures_display").update("Number of Cultures: -")
         except Exception:
-            # If there's an error, keep the last known values
+            # If widgets don't exist yet, ignore the error
             pass
 
 class Body(Static):
     """Body widget."""
+    
+    def __init__(self):
+        super().__init__()
+        self.showing_settings = False
     
     def compose(self) -> ComposeResult:
         yield Menu()
@@ -135,9 +163,170 @@ class Menu(Static):
     """Menu widget."""
     
     def compose(self) -> ComposeResult:
-        yield Button("Settings", classes="menu-item")
+        yield Button("Settings", id="settings_btn", classes="menu-item")
         yield Button("Setup Simulation", id="setup_btn", classes="menu-item", disabled=True, tooltip="Database must be connected")
         yield Button("Run Simulation", id="run_btn", classes="menu-item", disabled=True, tooltip="Database must be connected")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
+        if event.button.id == "settings_btn":
+            # Get the body widget and switch its content
+            body = self.parent
+            body.showing_settings = True
+            body.remove_class("menu-view")
+            body.add_class("settings-view")
+            
+            # Clear and replace content
+            body.remove_children()
+            body.mount(SettingsView())
+
+class SettingsView(Static):
+    """Settings view widget."""
+    def compose(self) -> ComposeResult:
+        yield DbSettings()
+        yield SettingsButtons()
+
+class SettingsButtons(Static):
+    """Settings button widget."""
+    def compose(self) -> ComposeResult:
+        yield Button("Save", id="save_btn", classes="settings-buttons")
+        yield Button("Cancel", id="cancel_btn", classes="settings-buttons")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
+        if event.button.id == "cancel_btn":
+            self.go_back_to_menu()
+        elif event.button.id == "save_btn":
+            self.save_settings()
+    
+    def go_back_to_menu(self) -> None:
+        """Go back to the main menu."""
+        # Get the body widget and switch back to menu
+        body = self.parent.parent  # SettingsView -> Body
+        body.showing_settings = False
+        body.remove_class("settings-view")
+        body.add_class("menu-view")
+        
+        # Clear and replace content with menu
+        body.remove_children()
+        body.mount(Menu())
+    
+    def save_settings(self) -> None:
+        """Save settings to .env file with validation."""
+        try:
+            from dotenv import set_key
+            
+            # Get the SettingsView widget to access the input fields
+            settings_view = self.parent  # SettingsButtons -> SettingsView
+            db_settings = settings_view.query_one(DbSettings)
+            
+            # Get values from input fields
+            db_host = db_settings.query_one("#db_host").value
+            db_port = db_settings.query_one("#db_port").value
+            db_user = db_settings.query_one("#db_user").value
+            db_password = db_settings.query_one("#db_password").value
+            db_name = db_settings.query_one("#db_name").value
+            
+            # Validate that required fields are not empty
+            if not db_host or not db_user or not db_name:
+                self.app.notify("Please fill in all required fields (Host, User, Database)", severity="warning")
+                return
+            
+            # Save to .env file
+            set_key(".env", "POSTGRES_HOST", db_host)
+            set_key(".env", "POSTGRES_PORT", db_port)
+            set_key(".env", "POSTGRES_USER", db_user)
+            set_key(".env", "POSTGRES_PASSWORD", db_password)
+            set_key(".env", "POSTGRES_DB", db_name)
+            
+            # Show success message
+            self.app.notify("Settings saved successfully!", severity="information")
+            
+            # Reload environment variables so database functions pick up new settings
+            load_dotenv(override=True)
+            
+            # Reset connection status to force a fresh check with new settings
+            self.reset_database_connection()
+            
+            # Go back to menu
+            self.go_back_to_menu()
+            
+        except Exception as e:
+            self.app.notify(f"Error saving settings: {str(e)}", severity="error")
+    
+    def reset_database_connection(self) -> None:
+        """Reset database connection status to force a fresh check."""
+        try:
+            # Get the secondary header and reset its connection status
+            secondary_header = self.app.query_one(SecondaryHeader)
+            if secondary_header:
+                # Reset connection status to force a fresh check
+                secondary_header.is_connected = False
+                
+                # Force an immediate database check with new settings
+                self.force_immediate_db_check(secondary_header)
+                
+        except Exception:
+            # If we can't find the secondary header, just continue
+            pass
+    
+    def force_immediate_db_check(self, secondary_header) -> None:
+        """Force an immediate database check with new settings."""
+        try:
+            # Clear any cached environment variables
+            import os
+            # Remove the database-related environment variables to force fresh load
+            for key in ['POSTGRES_HOST', 'POSTGRES_PORT', 'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD']:
+                if key in os.environ:
+                    del os.environ[key]
+            
+            # Reload environment variables
+            load_dotenv(override=True)
+            
+            # Force an immediate connection test
+            try:
+                connection_status = ping_db_basic()
+                secondary_header.is_connected = connection_status is not False
+            except Exception:
+                secondary_header.is_connected = False
+            
+            # Update the display immediately
+            secondary_header.app.call_after_refresh(secondary_header.update_status_display)
+            
+        except Exception:
+            # If anything fails, just mark as disconnected
+            secondary_header.is_connected = False
+
+class DbSettings(Static):
+    """Database settings widget."""
+    
+    def __init__(self):
+        super().__init__()
+        self.load_env_values()
+    
+    def load_env_values(self) -> None:
+        """Load values from .env file."""
+        # Load .env file if it exists
+        load_dotenv()
+        
+        # Get values from environment variables with defaults
+        self.db_host = os.getenv("POSTGRES_HOST", "localhost")
+        self.db_port = os.getenv("POSTGRES_PORT", "5432")
+        self.db_user = os.getenv("POSTGRES_USER", "")
+        self.db_password = os.getenv("POSTGRES_PASSWORD", "")
+        self.db_name = os.getenv("POSTGRES_DB", "")
+    
+    def compose(self) -> ComposeResult:
+        yield Label("Postgres Host", classes="input-label")
+        yield Input(value=self.db_host, id="db_host", classes="input-field")
+        yield Label("Postgres Port", classes="input-label")
+        yield Input(value=self.db_port, id="db_port", classes="input-field")
+        yield Label("Postgres User", classes="input-label")
+        yield Input(value=self.db_user, id="db_user", classes="input-field")
+        yield Label("Postgres Password", classes="input-label")
+        yield Input(value=self.db_password, id="db_password", classes="input-field", password=True)
+        yield Label("Postgres Database", classes="input-label")
+        yield Input(value=self.db_name, id="db_name", classes="input-field")
 
 class Footer(Static):
     """Footer widget."""
