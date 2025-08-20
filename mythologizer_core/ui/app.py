@@ -77,8 +77,32 @@ class SecondaryHeader(Horizontal):
         
         if self.is_connected:
             status_widget.update("Connected")
+            # Enable the simulation buttons
+            self.update_simulation_buttons(True)
         else:
             status_widget.update("Disconnected")
+            # Disable the simulation buttons
+            self.update_simulation_buttons(False)
+    
+    def update_simulation_buttons(self, enabled: bool) -> None:
+        """Update the simulation buttons based on database connection."""
+        try:
+            setup_btn = self.app.query_one("#setup_btn")
+            run_btn = self.app.query_one("#run_btn")
+            
+            if enabled:
+                setup_btn.disabled = False
+                setup_btn.tooltip = None
+                run_btn.disabled = False
+                run_btn.tooltip = None
+            else:
+                setup_btn.disabled = True
+                setup_btn.tooltip = "Database must be connected"
+                run_btn.disabled = True
+                run_btn.tooltip = "Database must be connected"
+        except Exception:
+            # If buttons don't exist yet, ignore the error
+            pass
     
     async def update_simulation_status(self) -> None:
         """Update simulation status when database is connected."""
@@ -112,8 +136,8 @@ class Menu(Static):
     
     def compose(self) -> ComposeResult:
         yield Button("Settings", classes="menu-item")
-        yield Button("Setup Simulation", classes="menu-item")
-        yield Button("Run Simulation", classes="menu-item")
+        yield Button("Setup Simulation", id="setup_btn", classes="menu-item", disabled=True, tooltip="Database must be connected")
+        yield Button("Run Simulation", id="run_btn", classes="menu-item", disabled=True, tooltip="Database must be connected")
 
 class Footer(Static):
     """Footer widget."""
