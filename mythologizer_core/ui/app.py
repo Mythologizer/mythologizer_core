@@ -115,15 +115,25 @@ class Menu(Static):
         yield Button("Setup Simulation", classes="menu-item")
         yield Button("Run Simulation", classes="menu-item")
 
+class Footer(Static):
+    """Footer widget."""
+    def compose(self) -> ComposeResult:
+        text = "Visit [bold]https://mythologizer.org[/bold] to learn more aswell as to create your own agents and browse though past myths."
+        yield Static(text, classes="footer-text", markup=True)
+
+    
+
 class MythologizerApp(App):
     """Simple Hello World Textual app."""
     CSS_PATH = "app.tcss"
+    
     
     def compose(self) -> ComposeResult:
         """Compose the app layout."""
         yield Header()
         yield SecondaryHeader()
         yield Body()
+        yield Footer()
 
 
 
