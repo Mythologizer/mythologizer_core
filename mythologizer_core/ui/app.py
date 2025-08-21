@@ -47,6 +47,7 @@ def load_simulation_config() -> Dict[str, Any]:
         "embedding_model": "all-MiniLM-L6-v2",
         "agent_attributes_file": "agent_attributes.py",
         "mythemes_file": "mythemes.txt",
+        "initial_cultures_file": "",
         "epochs": ""
     }
 
@@ -206,7 +207,7 @@ class SimulationLogView(Static):
     """Log view for simulation operations."""
     
     def compose(self) -> ComposeResult:
-        yield RichLog(id="simulation_log", auto_scroll=True, highlight=False)    
+        yield RichLog(id="simulation_log", auto_scroll=True, highlight=False, max_lines=500)    
 
     
 
@@ -377,6 +378,7 @@ class SettingsButtons(Static):
             embedding_model = setup_settings.query_one("#embedding_model").value
             agent_attributes_file = setup_settings.query_one("#agent_attributes_file").value
             mythemes_file = setup_settings.query_one("#mythemes_file").value
+            initial_cultures_file = setup_settings.query_one("#initial_cultures_file").value
             epochs = setup_settings.query_one("#epochs").value
             
             # Validate that required database fields are not empty
@@ -401,6 +403,7 @@ class SettingsButtons(Static):
                 "embedding_model": embedding_model,
                 "agent_attributes_file": agent_attributes_file,
                 "mythemes_file": mythemes_file,
+                "initial_cultures_file": initial_cultures_file,
                 "epochs": epochs
             }
             save_simulation_config(simulation_config)
@@ -475,6 +478,8 @@ class SetupSettings(Static):
         yield Input(value=config.get("agent_attributes_file", "agent_attributes.py"), id="agent_attributes_file", classes="input-field")
         yield Label("Mythemes File", classes="input-label")
         yield Input(value=config.get("mythemes_file", "mythemes.txt"), id="mythemes_file", classes="input-field")
+        yield Label("Initial Cultures File (optional)", classes="input-label")
+        yield Input(value=config.get("initial_cultures_file", ""), id="initial_cultures_file", classes="input-field")
         yield Label("Number of Epochs (optional)", classes="input-label")
         yield Input(value=config.get("epochs", ""), id="epochs", classes="input-field")
 
@@ -619,13 +624,21 @@ class MythologizerApp(App):
             logging.info(f"Agent attributes type: {type(agent_attributes)}")
             logging.info(f"Agent attributes: {agent_attributes}")
             
+            # Get initial cultures file (optional)
+            initial_cultures_file = config.get("initial_cultures_file", "")
+            if initial_cultures_file:
+                logging.info(f"Initial cultures file: {initial_cultures_file}")
+            else:
+                logging.info("No initial cultures file specified")
+            
             # Run setup_simulation in background thread with fresh connection
             # Run the setup simulation directly
             result = await asyncio.to_thread(
                 setup_simulation,
                 embedding_function=config["embedding_model"],
                 mythemes=config["mythemes_file"],
-                agent_attributes=agent_attributes
+                agent_attributes=agent_attributes,
+                inital_cultures=initial_cultures_file if initial_cultures_file else None
             )
             
             logging.info("Setup simulation completed successfully!")

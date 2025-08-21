@@ -2,13 +2,13 @@ from mythologizer_core.types import EmbeddingFunction
 from mythologizer_core import AgentAttribute
 from mythologizer_postgres.db import apply_schemas, drop_everything
 from mythologizer_postgres.connectors.mytheme_store import insert_mythemes_bulk
-from mythologizer_postgres.connectors import insert_agent_attribute_defs
+from mythologizer_postgres.connectors import insert_agent_attribute_defs, insert_cultures_bulk
 from sentence_transformers import SentenceTransformer
 
 
 import logging
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,8 @@ def _validate_inputs(mythemes: List[str], agent_attributes: List[AgentAttribute]
 def setup_simulation(
     embedding_function: EmbeddingFunction | str,
     mythemes: List[str] | str,
-    agent_attributes: List[AgentAttribute]
+    agent_attributes: List[AgentAttribute],
+    inital_cultures: Optional[List[Tuple[str, str]]] | str = None
 ) -> None:
     """
     Set up the simulation environment with embeddings and agent attributes.
@@ -134,6 +135,19 @@ def setup_simulation(
         logger.info("Inserting agent attributes...")
         insert_agent_attribute_defs(agent_attributes)
         logger.info(f"Successfully inserted {len(agent_attributes)} agent attribute definitions")
+
+        # Process inital cultures
+        if inital_cultures:
+            if isinstance(inital_cultures, str):
+                with open(inital_cultures, "r") as f:
+                    inital_cultures = f.readlines()
+                inital_cultures = [culture.strip() for culture in inital_cultures]
+                inital_cultures = [(culture.split(";")[0], culture.split(";")[1]) for culture in inital_cultures]
+                logger.info(f"Loaded inital cultures: {inital_cultures}")
+
+            logger.info("Inserting inital cultures...")
+            insert_cultures_bulk(inital_cultures)
+            logger.info(f"Successfully inserted {len(inital_cultures)} inital cultures")
         
         logger.info("Simulation setup completed successfully")
         
