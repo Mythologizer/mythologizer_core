@@ -1,9 +1,11 @@
 from mythologizer_postgres.db import ping_db_basic, check_if_tables_exist
 from mythologizer_postgres.connectors import increment_epoch, get_current_epoch
+from mythologizer_core.agent_attribute import AgentAttribute
 
 import logging
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Optional
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +27,10 @@ def _pre_simulation_checks():
     logger.info("All tables exist")
 
 
-def run_simulation(n_epochs: int | None = None):
+def run_simulation(
+    agent_attributes: List[AgentAttribute],
+    n_epochs: Optional[int] = None,
+    should_cancel: Optional[callable] = None):
     _pre_simulation_checks()
 
     if n_epochs is None:
@@ -35,8 +40,17 @@ def run_simulation(n_epochs: int | None = None):
 
     starting_epoch = get_current_epoch()
     current_epoch = starting_epoch
-    end_epoch = starting_epoch + n_epochs
+    if n_epochs:
+        end_epoch = starting_epoch + n_epochs
+    else:
+        end_epoch = None
+        
     while True:
+        # Check for cancellation
+        if should_cancel and should_cancel():
+            logger.info("Simulation cancelled by user")
+            break
+            
         logger.info(f"Epoch {current_epoch} starting")
         _run_epoch()
         logger.info(f"Epoch {current_epoch} finished")
@@ -45,6 +59,7 @@ def run_simulation(n_epochs: int | None = None):
             logger.info(f"Epoch {current_epoch-1} reached, stopping simulation")
             break
         increment_epoch()
+        time.sleep(3)
 
 
 def _run_epoch():

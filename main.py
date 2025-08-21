@@ -8,4 +8,4 @@ logger = logging.getLogger(__name__)
 
 load_dotenv(find_dotenv())
 
-run_simulation(n_epochs=10)
+run_simulation()

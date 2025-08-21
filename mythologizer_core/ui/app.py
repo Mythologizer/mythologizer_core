@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import signal
 
 # Configure logging to use TextualHandler
 logging.basicConfig(
@@ -45,7 +46,8 @@ def load_simulation_config() -> Dict[str, Any]:
     return {
         "embedding_model": "all-MiniLM-L6-v2",
         "agent_attributes_file": "agent_attributes.py",
-        "mythemes_file": "mythemes.txt"
+        "mythemes_file": "mythemes.txt",
+        "epochs": ""
     }
 
 def save_simulation_config(config: Dict[str, Any]) -> None:
@@ -289,6 +291,9 @@ class Menu(Static):
         elif event.button.id == "setup_btn":
             # Show confirmation modal
             self.app.push_screen(SetupConfirmationModal(), self.setup_confirmation_callback)
+        elif event.button.id == "run_btn":
+            # Start run simulation directly
+            self.start_run_simulation()
     
     def setup_confirmation_callback(self, confirmed: bool) -> None:
         """Handle the setup confirmation result."""
@@ -303,6 +308,17 @@ class Menu(Static):
             self.app.call_after_refresh(self.app.run_setup_simulation, log_view)
         else:
             self.app.notify("Setup cancelled", severity="information")
+    
+    def start_run_simulation(self) -> None:
+        """Start the run simulation."""
+        # Switch to log view
+        body = self.app.query_one("Body")
+        body.remove_children()
+        log_view = SimulationLogView()
+        body.mount(log_view)
+        
+        # Start run simulation in background using the app's worker
+        self.app.call_after_refresh(self.app.run_simulation, log_view)
     
 
 
@@ -361,6 +377,7 @@ class SettingsButtons(Static):
             embedding_model = setup_settings.query_one("#embedding_model").value
             agent_attributes_file = setup_settings.query_one("#agent_attributes_file").value
             mythemes_file = setup_settings.query_one("#mythemes_file").value
+            epochs = setup_settings.query_one("#epochs").value
             
             # Validate that required database fields are not empty
             if not db_host or not db_user or not db_name:
@@ -383,7 +400,8 @@ class SettingsButtons(Static):
             simulation_config = {
                 "embedding_model": embedding_model,
                 "agent_attributes_file": agent_attributes_file,
-                "mythemes_file": mythemes_file
+                "mythemes_file": mythemes_file,
+                "epochs": epochs
             }
             save_simulation_config(simulation_config)
             
@@ -457,6 +475,8 @@ class SetupSettings(Static):
         yield Input(value=config.get("agent_attributes_file", "agent_attributes.py"), id="agent_attributes_file", classes="input-field")
         yield Label("Mythemes File", classes="input-label")
         yield Input(value=config.get("mythemes_file", "mythemes.txt"), id="mythemes_file", classes="input-field")
+        yield Label("Number of Epochs (optional)", classes="input-label")
+        yield Input(value=config.get("epochs", ""), id="epochs", classes="input-field")
 
 
 class DbSettings(Static):
@@ -502,6 +522,9 @@ class MythologizerApp(App):
     """Simple Hello World Textual app."""
     CSS_PATH = "app.tcss"
     
+    def __init__(self):
+        super().__init__()
+        self._shutdown_requested = False
     
     def compose(self) -> ComposeResult:
         """Compose the app layout."""
@@ -509,6 +532,25 @@ class MythologizerApp(App):
         yield SecondaryHeader()
         yield Body()
         yield Footer()
+    
+    def on_unmount(self) -> None:
+        """Clean up when the app is unmounted."""
+        self._shutdown_requested = True
+    
+    def exit(self, result=None) -> None:
+        """Override exit to ensure proper cleanup."""
+        self._shutdown_requested = True
+        super().exit(result)
+    
+    def on_key(self, event) -> None:
+        """Handle keyboard events."""
+        if event.key == "ctrl+q":
+            self._shutdown_requested = True
+            self.exit()
+    
+    def is_shutting_down(self) -> bool:
+        """Check if the app is shutting down."""
+        return self._shutdown_requested or not self.is_running
     
     @work
     async def run_setup_simulation(self, log_view: SimulationLogView) -> None:
@@ -603,6 +645,112 @@ class MythologizerApp(App):
             # Clean up: remove our custom handler
             root_logger.removeHandler(handler)
     
+    @work
+    async def run_simulation(self, log_view: SimulationLogView) -> None:
+        """Run simulation in background with logging."""
+        # Get the RichLog widget
+        log_widget = log_view.query_one("#simulation_log")
+        
+        # Create custom TextualHandler to redirect logs to our widget
+        class TextualHandler(logging.Handler):
+            def emit(self, record):
+                try:
+                    msg = self.format(record)
+                    # Use call_after_refresh to ensure UI thread safety
+                    self.app.call_after_refresh(lambda: log_widget.write(msg))
+                except Exception:
+                    self.handleError(record)
+        
+        # Set up the handler
+        handler = TextualHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+        handler.app = self  # Store app reference
+        
+        # Add handler to root logger
+        root_logger = logging.getLogger()
+        root_logger.addHandler(handler)
+        root_logger.setLevel(logging.DEBUG)
+        
+        try:
+            # Load the saved configuration
+            config = load_simulation_config()
+            logging.info(f"Loaded configuration: {config}")
+            
+            # Import the run function
+            from mythologizer_core import run_simulation
+            logging.info("Imported run_simulation function")
+            
+            # Get epochs value (optional)
+            epochs = config.get("epochs", "")
+            if epochs:
+                try:
+                    epochs = int(epochs)
+                    logging.info(f"Running simulation for {epochs} epochs")
+                except ValueError:
+                    logging.warning(f"Invalid epochs value '{epochs}', running without epoch limit")
+                    epochs = None
+            else:
+                logging.info("No epochs specified, running without epoch limit")
+                epochs = None
+            
+            # Load agent attributes from the specified file
+            import importlib.util
+            
+            logging.info(f"Loading agent attributes from: {config['agent_attributes_file']}")
+            
+            # Check if agent attributes file exists
+            agent_attributes_file = config["agent_attributes_file"]
+            if not os.path.exists(agent_attributes_file):
+                raise FileNotFoundError(f"Agent attributes file not found: {agent_attributes_file}")
+            
+            logging.info(f"Agent attributes file exists: {agent_attributes_file}")
+            
+            # Load the agent attributes file
+            spec = importlib.util.spec_from_file_location("agent_attributes_module", agent_attributes_file)
+            agent_attributes_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(agent_attributes_module)
+            
+            # Get the agent_attributes list from the module
+            agent_attributes = getattr(agent_attributes_module, "agent_attributes")
+            logging.info(f"Loaded {len(agent_attributes)} agent attributes")
+            
+            # Call run_simulation
+            logging.info("Calling run_simulation...")
+            result = await asyncio.to_thread(
+                run_simulation, 
+                agent_attributes=agent_attributes, 
+                n_epochs=epochs,
+                should_cancel=self.is_shutting_down
+            )
+            
+            logging.info("Simulation completed successfully!")
+            self.call_after_refresh(lambda: self.notify("Simulation completed successfully!", severity="information"))
+            
+            # Return to menu after successful simulation
+            self.call_after_refresh(self.return_to_menu_after_simulation)
+            
+        except Exception as e:
+            error_msg = f"Simulation failed: {str(e)}"
+            logging.error(f"Simulation failed: {str(e)}")
+            self.call_after_refresh(lambda: self.notify(error_msg, severity="error"))
+            
+            # Return to menu after failed simulation as well
+            self.call_after_refresh(self.return_to_menu_after_simulation)
+        finally:
+            # Clean up: remove our custom handler
+            root_logger.removeHandler(handler)
+    
+    def return_to_menu_after_simulation(self) -> None:
+        """Return to the main menu after simulation completion."""
+        try:
+            # Get the body widget and switch back to menu
+            body = self.query_one("Body")
+            body.remove_children()
+            body.mount(Menu())
+        except Exception as e:
+            # If there's an error returning to menu, just log it
+            logging.error(f"Error returning to menu: {str(e)}")
+    
     def return_to_menu_after_setup(self) -> None:
         """Return to the main menu after setup completion."""
         try:
@@ -618,6 +766,15 @@ class MythologizerApp(App):
 
 def main():
     """Main entry point for the mythologizer command."""
+    
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully."""
+        print("\nShutting down gracefully...")
+        sys.exit(0)
+    
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     app = MythologizerApp()
     app.run()
