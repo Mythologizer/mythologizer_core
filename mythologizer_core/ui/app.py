@@ -2,23 +2,59 @@ from dotenv import load_dotenv,find_dotenv
 load_dotenv(find_dotenv())
 
 from textual.app import App, ComposeResult
-from textual.widgets import Static, Log, Button, Input, Label
-from textual.containers import Horizontal, HorizontalGroup, Container
+from textual.widgets import Static, RichLog, Button, Input, Label
+from textual.containers import Horizontal, HorizontalGroup, Container, ScrollableContainer
 from textual.screen import ModalScreen
 from textual import work, on
 from textual.reactive import reactive
+from textual.logging import TextualHandler
+import logging
 import asyncio
 from art import *
 from mythologizer_postgres.db import ping_db_basic
 from mythologizer_postgres.connectors import get_simulation_status
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+import json
+from pathlib import Path
 import subprocess
 import sys
 
+# Configure logging to use TextualHandler
+logging.basicConfig(
+    level="DEBUG",
+    handlers=[TextualHandler()],
+)
 
+
+# Configuration file handling
+CONFIG_FILE = Path("simulation_config.json")
+
+def load_simulation_config() -> Dict[str, Any]:
+    """Load simulation configuration from JSON file."""
+    try:
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading config: {e}")
+    
+    # Return default configuration
+    return {
+        "embedding_model": "all-MiniLM-L6-v2",
+        "agent_attributes_file": "agent_attributes.py",
+        "mythemes_file": "mythemes.txt"
+    }
+
+def save_simulation_config(config: Dict[str, Any]) -> None:
+    """Save simulation configuration to JSON file."""
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        print(f"Error saving config: {e}")
 
 class Header(Static):
     """Header widget."""
@@ -164,6 +200,24 @@ class Body(Static):
 
 
 
+class SimulationLogView(Static):
+    """Log view for simulation operations."""
+    
+    def compose(self) -> ComposeResult:
+        yield RichLog(id="simulation_log", auto_scroll=True, highlight=False)    
+
+    
+
+    
+    @on(Button.Pressed, "#back_to_menu")
+    def back_to_menu(self) -> None:
+        """Go back to the main menu."""
+        body = self.parent  # SimulationLogView -> Body
+        body.remove_children()
+        body.mount(Menu())
+    
+
+
 class SetupConfirmationModal(ModalScreen[bool]):
     """Confirmation modal for setup simulation."""
     
@@ -239,16 +293,27 @@ class Menu(Static):
     def setup_confirmation_callback(self, confirmed: bool) -> None:
         """Handle the setup confirmation result."""
         if confirmed:
-            # TODO: Add actual setup simulation logic here
-            self.app.notify("Setup simulation started...", severity="information")
+            # Switch to log view
+            body = self.app.query_one("Body")
+            body.remove_children()
+            log_view = SimulationLogView()
+            body.mount(log_view)
+            
+            # Start setup simulation in background using the app's worker
+            self.app.call_after_refresh(self.app.run_setup_simulation, log_view)
         else:
             self.app.notify("Setup cancelled", severity="information")
+    
 
-class SettingsView(Static):
+
+class SettingsView(ScrollableContainer):
     """Settings view widget."""
     def compose(self) -> ComposeResult:
-        yield DbSettings()
-        yield SettingsButtons()
+        with Container(classes="settings-container"):
+            yield DbSettings()
+            yield SetupSettings()
+            yield SettingsButtons()
+
 
 class SettingsButtons(Static):
     """Settings button widget."""
@@ -276,32 +341,51 @@ class SettingsButtons(Static):
         body.mount(Menu())
     
     def save_settings(self) -> None:
-        """Save settings to .env file with validation."""
+        """Save settings to .env file and simulation config with validation."""
         try:
             from dotenv import set_key
             
             # Get the SettingsView widget to access the input fields
             settings_view = self.parent  # SettingsButtons -> SettingsView
             db_settings = settings_view.query_one(DbSettings)
+            setup_settings = settings_view.query_one(SetupSettings)
             
-            # Get values from input fields
+            # Get database values from input fields
             db_host = db_settings.query_one("#db_host").value
             db_port = db_settings.query_one("#db_port").value
             db_user = db_settings.query_one("#db_user").value
             db_password = db_settings.query_one("#db_password").value
             db_name = db_settings.query_one("#db_name").value
             
-            # Validate that required fields are not empty
+            # Get simulation settings values
+            embedding_model = setup_settings.query_one("#embedding_model").value
+            agent_attributes_file = setup_settings.query_one("#agent_attributes_file").value
+            mythemes_file = setup_settings.query_one("#mythemes_file").value
+            
+            # Validate that required database fields are not empty
             if not db_host or not db_user or not db_name:
-                self.app.notify("Please fill in all required fields (Host, User, Database)", severity="warning")
+                self.app.notify("Please fill in all required database fields (Host, User, Database)", severity="warning")
                 return
             
-            # Save to .env file
+            # Validate that required simulation fields are not empty
+            if not embedding_model or not agent_attributes_file or not mythemes_file:
+                self.app.notify("Please fill in all required simulation fields", severity="warning")
+                return
+            
+            # Save database settings to .env file
             set_key(".env", "POSTGRES_HOST", db_host)
             set_key(".env", "POSTGRES_PORT", db_port)
             set_key(".env", "POSTGRES_USER", db_user)
             set_key(".env", "POSTGRES_PASSWORD", db_password)
             set_key(".env", "POSTGRES_DB", db_name)
+            
+            # Save simulation settings to JSON config file
+            simulation_config = {
+                "embedding_model": embedding_model,
+                "agent_attributes_file": agent_attributes_file,
+                "mythemes_file": mythemes_file
+            }
+            save_simulation_config(simulation_config)
             
             # Show success message
             self.app.notify("Settings saved successfully!", severity="information")
@@ -361,6 +445,20 @@ class SettingsButtons(Static):
             # If anything fails, just mark as disconnected
             secondary_header.is_connected = False
 
+class SetupSettings(Static):
+    """Setup settings widget."""
+    def compose(self) -> ComposeResult:
+        # Load current configuration
+        config = load_simulation_config()
+        
+        yield Label("Sentence Embedding Model", classes="input-label")
+        yield Input(value=config.get("embedding_model", "all-MiniLM-L6-v2"), id="embedding_model", classes="input-field")
+        yield Label("Agent Attributes File", classes="input-label")
+        yield Input(value=config.get("agent_attributes_file", "agent_attributes.py"), id="agent_attributes_file", classes="input-field")
+        yield Label("Mythemes File", classes="input-label")
+        yield Input(value=config.get("mythemes_file", "mythemes.txt"), id="mythemes_file", classes="input-field")
+
+
 class DbSettings(Static):
     """Database settings widget."""
     
@@ -411,6 +509,110 @@ class MythologizerApp(App):
         yield SecondaryHeader()
         yield Body()
         yield Footer()
+    
+    @work
+    async def run_setup_simulation(self, log_view: SimulationLogView) -> None:
+        """Run setup simulation in background with logging."""
+        # Get the RichLog widget
+        log_widget = log_view.query_one("#simulation_log")
+        
+        # Create custom TextualHandler to redirect logs to our widget
+        class TextualHandler(logging.Handler):
+            def emit(self, record):
+                try:
+                    msg = self.format(record)
+                    # Use call_after_refresh to ensure UI thread safety
+                    self.app.call_after_refresh(lambda: log_widget.write(msg))
+                except Exception:
+                    self.handleError(record)
+        
+        # Set up the handler
+        handler = TextualHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+        handler.app = self  # Store app reference
+        
+        # Add handler to root logger
+        root_logger = logging.getLogger()
+        root_logger.addHandler(handler)
+        root_logger.setLevel(logging.DEBUG)
+        
+        try:
+            # Load the saved configuration
+            config = load_simulation_config()
+            logging.info(f"Loaded configuration: {config}")
+            
+            # Import the setup function
+            from mythologizer_core.setup import setup_simulation
+            logging.info("Imported setup_simulation function")
+            
+            # Load agent attributes from the specified file
+            import importlib.util
+            
+            logging.info(f"Loading agent attributes from: {config['agent_attributes_file']}")
+            
+            # Check if agent attributes file exists
+            agent_attributes_file = config["agent_attributes_file"]
+            if not os.path.exists(agent_attributes_file):
+                raise FileNotFoundError(f"Agent attributes file not found: {agent_attributes_file}")
+            
+            # Check if mythemes file exists
+            mythemes_file = config["mythemes_file"]
+            if not os.path.exists(mythemes_file):
+                raise FileNotFoundError(f"Mythemes file not found: {mythemes_file}")
+            
+            logging.info(f"Files exist: {agent_attributes_file} and {mythemes_file}")
+            
+            # Load the agent attributes file
+            spec = importlib.util.spec_from_file_location("agent_attributes_module", agent_attributes_file)
+            agent_attributes_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(agent_attributes_module)
+            
+            # Get the agent_attributes list from the module
+            agent_attributes = getattr(agent_attributes_module, "agent_attributes")
+            logging.info(f"Loaded {len(agent_attributes)} agent attributes")
+            
+            # Call setup_simulation with the saved configuration
+            logging.info("Calling setup_simulation...")
+            logging.info(f"Parameters: embedding_model={config['embedding_model']}, mythemes_file={config['mythemes_file']}, agent_attributes_count={len(agent_attributes)}")
+            logging.info(f"Agent attributes type: {type(agent_attributes)}")
+            logging.info(f"Agent attributes: {agent_attributes}")
+            
+            # Run setup_simulation in background thread with fresh connection
+            # Run the setup simulation directly
+            result = await asyncio.to_thread(
+                setup_simulation,
+                embedding_function=config["embedding_model"],
+                mythemes=config["mythemes_file"],
+                agent_attributes=agent_attributes
+            )
+            
+            logging.info("Setup simulation completed successfully!")
+            self.call_after_refresh(lambda: self.notify("Setup simulation completed successfully!", severity="information"))
+            
+            # Return to menu after successful setup
+            self.call_after_refresh(self.return_to_menu_after_setup)
+            
+        except Exception as e:
+            error_msg = f"Setup failed: {str(e)}"
+            logging.error(f"Setup failed: {str(e)}")
+            self.call_after_refresh(lambda: self.notify(error_msg, severity="error"))
+            
+            # Return to menu after failed setup as well
+            self.call_after_refresh(self.return_to_menu_after_setup)
+        finally:
+            # Clean up: remove our custom handler
+            root_logger.removeHandler(handler)
+    
+    def return_to_menu_after_setup(self) -> None:
+        """Return to the main menu after setup completion."""
+        try:
+            # Get the body widget and switch back to menu
+            body = self.query_one("Body")
+            body.remove_children()
+            body.mount(Menu())
+        except Exception as e:
+            # If there's an error returning to menu, just log it
+            logging.error(f"Error returning to menu: {str(e)}")
 
 
 

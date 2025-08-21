@@ -66,18 +66,32 @@ Input {
 
 }
 
-DbSettings {
+DbSettings, SetupSettings {
     layout: grid;
     grid-size: 2;
 }
 
+SetupSettings {
+    margin-top: 2
+}
+
 SettingsView {
-    width: 80;
+    width: 100%;
     align: center middle;
+    scrollbar-background: rgb(1, 1, 134);
+    scrollbar-corner-color: rgb(1, 1, 134);
+    scrollbar-color: white;
+    scrollbar-gutter: auto
+}
+
+.settings-container {
+    width: 60;
+    background: blue;
+    height: auto;
 }
 
 SettingsButtons {
-    padding: 4;
+    padding-top: 4;
     align: center middle;
     width: 100%;
 }
@@ -120,6 +134,32 @@ SettingsButtons {
 
 .settings-content {
     text-align: center;
+}
+
+SimulationLogView {
+    height: 100%;
+    margin-left: 2;
+    margin-right: 2;
+}
+
+SimulationLogView > RichLog {
+    height: 100%;
+    border: none;
+    background: blue;
+    scrollbar-background: rgb(1, 1, 134);
+    scrollbar-corner-color: rgb(1, 1, 134);
+    scrollbar-color: white;
+    scrollbar-gutter: auto
+
+}
+
+SimulationLogView > Horizontal {
+    height: auto;
+    margin: 1;
+}
+
+SimulationLogView > Horizontal > Button {
+    margin: 0 2;
 }
 
 
