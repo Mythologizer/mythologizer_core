@@ -3,5 +3,5 @@
   "agent_attributes_file": "agent_attributes.py",
   "mythemes_file": "mythemes.txt",
   "initial_cultures_file": "inital_cultures.txt",
-  "epochs": ""
+  "epochs": "4"
 }

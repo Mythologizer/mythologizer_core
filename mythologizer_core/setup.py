@@ -3,7 +3,7 @@ from mythologizer_core import AgentAttribute
 from mythologizer_postgres.db import apply_schemas, drop_everything
 from mythologizer_postgres.connectors.mytheme_store import insert_mythemes_bulk
 from mythologizer_postgres.connectors import insert_agent_attribute_defs, insert_cultures_bulk
-from sentence_transformers import SentenceTransformer
+from mythologizer_core.utils import get_embedding_function, validate_embedding_dim
 
 
 import logging
@@ -13,29 +13,7 @@ from typing import List, Union, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-def _get_embedding_dim(embedding_function: EmbeddingFunction) -> int:
-    """Determine the dimension of embeddings produced by the embedding function."""
-    logger.info(f"Testing embedding function with type: {type(embedding_function)}")
-    
-    # Check if it's a SentenceTransformer and use encode method
-    if hasattr(embedding_function, 'encode'):
-        logger.info("Using SentenceTransformer.encode() method")
-        test_embedding = embedding_function.encode("test")
-    else:
-        test_embedding = embedding_function("test")
-    
-    logger.info(f"Test embedding result type: {type(test_embedding)}")
-    logger.info(f"Test embedding result: {test_embedding}")
-    
-    if isinstance(test_embedding, list):
-        logger.info(f"Embedding is list with length: {len(test_embedding)}")
-        return len(test_embedding)
-    elif isinstance(test_embedding, np.ndarray):
-        logger.info(f"Embedding is numpy array with shape: {test_embedding.shape}")
-        return test_embedding.shape[0]
-    else:
-        logger.error(f"Unsupported embedding type: {type(test_embedding)}")
-        raise ValueError(f"Unsupported embedding type: {type(test_embedding)}")
+
 
 
 def _compute_embeddings(embedding_function: EmbeddingFunction, mythemes: List[str]) -> List[Union[List[float], np.ndarray]]:
@@ -97,24 +75,14 @@ def setup_simulation(
             
         _validate_inputs(mythemes, agent_attributes)
         
-        # Determine embedding dimension
+        # Get and validate embedding function and dimension
         logger.info("Creating SentenceTransformer...")
-        if isinstance(embedding_function, str):
-            embedding_function = SentenceTransformer(embedding_function)
+        embedding_function = get_embedding_function(embedding_function)
         logger.info(f"Created SentenceTransformer: {type(embedding_function)}")
         
-        # Test the embedding function directly
-        logger.info("Testing embedding function directly...")
-        if hasattr(embedding_function, 'encode'):
-            test_result = embedding_function.encode("test")
-        else:
-            test_result = embedding_function("test")
-        logger.info(f"Direct test result type: {type(test_result)}")
-        logger.info(f"Direct test result: {test_result}")
-        
-        logger.info("Getting embedding dimension...")
-        embedding_dim = _get_embedding_dim(embedding_function)
-        logger.info(f"Detected embedding dimension: {embedding_dim}")
+        logger.info("Validating embedding dimension...")
+        embedding_dim = validate_embedding_dim(embedding_function)
+        logger.info(f"Validated embedding dimension: {embedding_dim}")
         
         # Reset database
         logger.info("Resetting database...")

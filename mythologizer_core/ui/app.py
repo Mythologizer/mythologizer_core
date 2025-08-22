@@ -731,6 +731,7 @@ class MythologizerApp(App):
             logging.info("Calling run_simulation...")
             result = await asyncio.to_thread(
                 run_simulation, 
+                embedding_function=config["embedding_model"],
                 agent_attributes=agent_attributes, 
                 n_epochs=epochs,
                 should_cancel=self.is_shutting_down
