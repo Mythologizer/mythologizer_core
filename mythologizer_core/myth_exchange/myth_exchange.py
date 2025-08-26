@@ -1,15 +1,40 @@
 from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
+import logging
 
 from mythologizer_postgres.connectors import get_myth_ids_and_retention_from_agents_memory, get_agents_cultures_bulk, update_retentions_and_reorder
-from mythologizer_postgres.connectors.mythic_algebra import get_myth_embeddings, get_myth_matrices, update_myth_with_retention, insert_myth_to_agent_memory
+from mythologizer_postgres.connectors.mythicalgebra import get_myth_embeddings, get_myth_matrices_and_embedding_ids, update_myth_with_retention, insert_myth_to_agent_memory
 
 from mythologizer_core.types import Embedding
 
+logger = logging.getLogger(__name__)
 
-def standard_remember_function(number_of_myths_in_memory: int) -> int:
-    """Default function to select a random myth index."""
-    return 0
+def standard_remember_function(number_of_myths_in_memory: int,*,recollection: float = 0.7, creativity: float = 0.3) -> int:
+    if number_of_myths_in_memory <= 0:
+        logger.error("Length must be positive, got %d", number_of_myths_in_memory)
+        raise ValueError("Length must be positive.")
+
+    if not (0 <= recollection <= 1):
+        logger.error("Recollection attribute out of bounds: %f", recollection)
+        raise ValueError("Recollection attribute must be between 0 and 1.")
+    if not (0 <= creativity <= 1):
+        logger.error("Creativity attribute out of bounds: %f", creativity)
+        raise ValueError("Creativity attribute must be between 0 and 1.")
+
+    scale_factor = (1 - recollection) * 20 + 1
+    # Use indices 1..length to compute weights, then adjust back to 0-index.
+    indices = np.arange(1, number_of_myths_in_memory + 1)
+    probabilities = np.exp(-scale_factor * indices / number_of_myths_in_memory)
+    probabilities = (1 - creativity) * probabilities + creativity * (1 / number_of_myths_in_memory)
+    probabilities /= probabilities.sum()  # Normalize
+
+    selected = int(np.random.choice(indices, p=probabilities))
+    selected_index = selected - 1  # Adjust for 0-indexing
+    logger.debug(
+        "standard_remember_function: Selected index %d (raw value %d) with probabilities: %s",
+        selected_index, selected, probabilities,
+    )
+    return selected_index
 
 
 def cosine_similarity(vector_a: List[float], vector_b: List[float]) -> float:
@@ -362,6 +387,11 @@ def tell_myth(
     logger.debug(f"Speaker myth IDs: {speaker_myth_ids}")
     logger.debug(f"Listener myth IDs: {listener_myth_ids}")
     
+    # Check if speaker has any myths
+    if len(speaker_myth_ids) == 0:
+        logger.info("Speaker has no myths to share, skipping myth exchange")
+        return
+    
     # Select the most appropriate myth from speaker's memory
     logger.info("Selecting most appropriate myth from speaker's memory...")
     chosen_speaker_myth_index = _select_speaker_myth(
@@ -378,7 +408,7 @@ def tell_myth(
     chosen_speaker_myth_embedding = speaker_myth_embeddings[chosen_speaker_myth_index]
     
     try:
-        chosen_speaker_myth_matrix, chosen_speaker_mytheme_ids = get_myth_matrices(chosen_speaker_myth_id)
+        chosen_speaker_myth_matrix, chosen_speaker_mytheme_ids = get_myth_matrices_and_embedding_ids(chosen_speaker_myth_id)
         logger.info(f"Selected speaker myth ID: {chosen_speaker_myth_id} with retention: {chosen_speaker_myth_retention}")
         logger.debug(f"Speaker myth has {len(chosen_speaker_mytheme_ids)} mythemes")
     except Exception as e:
@@ -433,7 +463,7 @@ def tell_myth(
     chosen_listener_myth_embedding = listener_myth_embeddings[chosen_listener_myth_index]
     
     try:
-        chosen_listener_myth_matrix, chosen_listener_mytheme_ids = get_myth_matrices(chosen_listener_myth_id)
+        chosen_listener_myth_matrix, chosen_listener_mytheme_ids = get_myth_matrices_and_embedding_ids(chosen_listener_myth_id)
         logger.info(f"Selected listener myth ID: {chosen_listener_myth_id} with retention: {chosen_listener_myth_retention}")
         logger.debug(f"Listener myth has {len(chosen_listener_mytheme_ids)} mythemes")
     except Exception as e:

@@ -114,11 +114,11 @@ def epoch_agent_attributes(agent_attributes: List[AgentAttribute]) -> Tuple[np.n
     attribute_matrix, agent_indices, attribute_name_to_col = _get_agent_attribute_matrix_safe()
     
     # Apply epoch functions to attributes that have them
-    attributes_with_epoch_functions = [attr for attr in agent_attributes if attr.epoch_function]
+    attributes_with_epoch_functions = [attr for attr in agent_attributes if attr.epoch_change_function]
     logger.info(f"Found {len(attributes_with_epoch_functions)} attributes with epoch functions")
     
     for index, agent_attribute in enumerate(agent_attributes):
-        if agent_attribute.epoch_function:
+        if agent_attribute.epoch_change_function:
             logger.debug(f"Processing attribute: {agent_attribute.name}")
             
             try:
@@ -127,11 +127,21 @@ def epoch_agent_attributes(agent_attributes: List[AgentAttribute]) -> Tuple[np.n
                 
                 # Apply the epoch function to the specific column
                 old_values = attribute_matrix[:, col_index].copy()
-                attribute_matrix[:, col_index] = agent_attribute.epoch_function(attribute_matrix[:, col_index])
+                attribute_matrix[:, col_index] = agent_attribute.epoch_change_function(attribute_matrix[:, col_index])
+                
+                # Apply min/max constraints if defined
+                if agent_attribute.min is not None:
+                    attribute_matrix[:, col_index] = np.maximum(attribute_matrix[:, col_index], agent_attribute.min)
+                    logger.debug(f"Applied min constraint {agent_attribute.min} to {agent_attribute.name}")
+                
+                if agent_attribute.max is not None:
+                    attribute_matrix[:, col_index] = np.minimum(attribute_matrix[:, col_index], agent_attribute.max)
+                    logger.debug(f"Applied max constraint {agent_attribute.max} to {agent_attribute.name}")
+                
                 new_values = attribute_matrix[:, col_index]
                 
                 logger.info(f"Epoch function applied to '{agent_attribute.name}'")
-                logger.debug(f"Values changed for {agent_attribute.name}: {np.mean(old_values):.3f} -> {np.mean(new_values):.3f}")
+                logger.debug(f"Values changed for {agent_attribute.name}: {old_values[:5]} -> {new_values[:5]}")
                 
             except KeyError as e:
                 error_msg = f"Attribute '{agent_attribute.name}' not found in attribute matrix columns"
@@ -240,7 +250,11 @@ def _create_culture_embedding_dict(
     for culture in cultures:
         try:
             culture_id, culture_name, culture_description = culture
-            embedding = embedding_function(culture_description)
+            # Use the encode method for SentenceTransformer
+            if hasattr(embedding_function, 'encode'):
+                embedding = embedding_function.encode(culture_description)
+            else:
+                embedding = embedding_function(culture_description)
             culture_embedding_dict[culture_id] = embedding
             logger.debug(f"Created embedding for culture {culture_id} ({culture_name})")
         except Exception as e:
@@ -254,6 +268,7 @@ def _create_culture_embedding_dict(
 def _process_interaction(
     interaction: Interaction,
     attribute_matrix: np.ndarray,
+    agent_indices: List[int],
     embeddings_of_attribute_names: List[np.ndarray],
     embedding_function: Union[EmbeddingFunction, str],
     culture_embedding_dict: Dict[int, np.ndarray]
@@ -264,6 +279,7 @@ def _process_interaction(
     Args:
         interaction: The interaction to process
         attribute_matrix: Matrix containing agent attribute values
+        agent_indices: List of agent IDs corresponding to matrix rows
         embeddings_of_attribute_names: List of attribute name embeddings
         embedding_function: Function to convert text to embeddings
         culture_embedding_dict: Dictionary of culture embeddings
@@ -274,9 +290,16 @@ def _process_interaction(
     logger.debug(f"Processing interaction: {interaction}")
     
     try:
+        # Create mapping from agent IDs to matrix indices
+        agent_id_to_matrix_idx = {agent_id: idx for idx, agent_id in enumerate(agent_indices)}
+        
+        # Map agent IDs to matrix indices
+        speaker_matrix_idx = agent_id_to_matrix_idx[interaction.speaker]
+        listener_matrix_indices = [agent_id_to_matrix_idx[listener_id] for listener_id in interaction.listeners]
+        
         # Get agent values for this interaction
-        listener_agent_values = attribute_matrix[interaction.listeners, :]
-        speaker_agent_values = attribute_matrix[interaction.speaker, :]
+        listener_agent_values = attribute_matrix[listener_matrix_indices, :]
+        speaker_agent_values = attribute_matrix[speaker_matrix_idx, :]
         
         logger.debug(f"Speaker {interaction.speaker} values shape: {speaker_agent_values.shape}")
         logger.debug(f"Listeners values shape: {listener_agent_values.shape}")
@@ -335,7 +358,11 @@ def run_epoch(
         embeddings_of_attribute_names = []
         for attribute in agent_attributes:
             try:
-                embedding = embedding_function(attribute.name)
+                # Use the encode method for SentenceTransformer
+                if hasattr(embedding_function, 'encode'):
+                    embedding = embedding_function.encode(attribute.name)
+                else:
+                    embedding = embedding_function(attribute.name)
                 embeddings_of_attribute_names.append(embedding)
                 logger.debug(f"Created embedding for attribute: {attribute.name}")
             except Exception as e:
@@ -368,6 +395,7 @@ def run_epoch(
                 _process_interaction(
                     interaction,
                     attribute_matrix,
+                    agent_indices,
                     embeddings_of_attribute_names,
                     embedding_function,
                     culture_embedding_dict
