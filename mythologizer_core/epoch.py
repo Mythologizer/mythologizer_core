@@ -410,6 +410,12 @@ def run_epoch(
         
         logger.info(f"Epoch completed: {successful_interactions}/{len(interactions)} interactions successful")
         
+        # If no interactions were successful, raise an error
+        if successful_interactions == 0:
+            error_msg = f"All {len(interactions)} interactions failed during epoch execution"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        
     except Exception as e:
         error_msg = f"Epoch execution failed: {str(e)}"
         logger.error(error_msg)

@@ -6,6 +6,7 @@ import numpy as np
 type Embedding = list[float] | NDArray[np.floating]
 type Embeddings = list[Embedding] | NDArray[np.floating]
 type id_type = int | str | UUID
+type id_list = list[id_type] | NDArray[np.integer] | NDArray[np.string_] | NDArray[np.object_]
 type Mythmatrix = ArrayLike
 type Weight = float | np.floating
 type Weights = list[Weight] | NDArray[np.floating]
