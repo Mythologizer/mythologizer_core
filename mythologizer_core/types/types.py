@@ -13,3 +13,5 @@ type Weights = list[Weight] | NDArray[np.floating]
 
 type EpochChangeFunction = Callable[[np.ndarray, Any, Any], np.ndarray]
 type EmbeddingFunction = Callable[[str], Embedding]
+
+type AgentAttributeMatrix = ArrayLike

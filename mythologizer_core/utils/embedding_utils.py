@@ -6,10 +6,29 @@ import logging
 import numpy as np
 from typing import Union
 from sentence_transformers import SentenceTransformer
-from mythologizer_core.types import EmbeddingFunction
+from mythologizer_core.types import Embedding, EmbeddingFunction
 from mythologizer_postgres.db import is_correct_embedding_size
 
 logger = logging.getLogger(__name__)
+
+def get_embedding_from_function(embedding_function: EmbeddingFunction, text: str) -> Embedding:
+    """
+    Get an embedding from an embedding function.
+    
+    Args:
+        embedding_function: The embedding function to use
+        text: The text to embed
+    """
+    try:
+        if hasattr(embedding_function, 'encode'):
+            embedding = embedding_function.encode(text)
+        else:
+            embedding = embedding_function(text)
+        return embedding
+    except Exception as e:
+        error_msg = f"Failed to create embedding for text '{text}': {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg) from e
 
 
 def get_embedding_function(embedding_function: Union[EmbeddingFunction, str]) -> EmbeddingFunction:

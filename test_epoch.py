@@ -172,7 +172,7 @@ def test_step_5_test_epoch_function(agent_attributes, embedding_function, config
     logger.info("=" * 50)
     
     try:
-        from mythologizer_core.epoch import run_epoch
+        from mythologizer_core.epoch.epoch import run_epoch
         
         # Get number of interactions from config or use default
         number_of_interactions = int(config.get("epochs", 4))
@@ -205,7 +205,7 @@ def test_step_6_run_multiple_epochs(agent_attributes, embedding_function, config
     logger.info("=" * 50)
     
     try:
-        from mythologizer_core.epoch import run_epoch
+        from mythologizer_core.epoch.epoch import run_epoch
         
         number_of_epochs = int(config.get("epochs", 4))
         number_of_interactions = 2  # Fewer interactions per epoch for testing
