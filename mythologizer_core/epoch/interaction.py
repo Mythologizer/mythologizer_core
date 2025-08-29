@@ -95,7 +95,7 @@ def process_interaction(
     attribute_matrix: AgentAttributeMatrix,
     agent_indices: id_list,
     embeddings_of_attribute_names: Embeddings,
-    embedding_function: Union[EmbeddingFunction, str],
+    embedding_function: EmbeddingFunction,
     culture_embedding_dict: Dict[id_type, Embedding],
     myth_exchange_config: Dict[str, float] = None
 ) -> None:
@@ -144,7 +144,7 @@ def process_interaction(
                         "new_myth_threshold": 0.5,
                         "retention_remember_factor": 0.1,
                         "retention_forget_factor": 0.05,
-                        "max_threshold_for_listener_myth": 0.5,
+                        "max_weight_for_combination_listener": 0.5,
                         "mutation_probability_deletion": 0.2,
                         "mutation_probability_mutation": 0.7,
                         "mutation_probability_reordering": 0.3
@@ -163,7 +163,7 @@ def process_interaction(
                     new_myth_threshold=myth_exchange_config.get("new_myth_threshold", 0.5),
                     retention_remember_factor=myth_exchange_config.get("retention_remember_factor", 0.1),
                     retention_forget_factor=myth_exchange_config.get("retention_forget_factor", 0.05),
-                    max_threshold_for_listener_myth=myth_exchange_config.get("max_threshold_for_listener_myth", 0.5),
+                    max_weight_for_combination_listener=myth_exchange_config.get("max_weight_for_combination_listener", 0.5),
                     mutation_probabilities=(
                         myth_exchange_config.get("mutation_probability_deletion", 0.2),
                         myth_exchange_config.get("mutation_probability_mutation", 0.7),

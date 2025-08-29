@@ -40,12 +40,38 @@ def insert_new_myth(
 ) -> None:
     """Insert a new myth into the agent's memory."""
     logger.info(f"Inserting new myth into agent {agent_id}")
+    logger.debug(f"Myth matrix shape: {myth_matrix.shape if hasattr(myth_matrix, 'shape') else 'No shape'}")
+    logger.debug(f"Myth matrix type: {type(myth_matrix)}")
+    logger.debug(f"Mytheme IDs: {mytheme_ids}, type: {type(mytheme_ids)}")
+    logger.debug(f"Myth embedding shape: {myth_embedding.shape if hasattr(myth_embedding, 'shape') else 'No shape'}")
+    logger.debug(f"Myth embedding type: {type(myth_embedding)}")
+    
     try:
+        logger.debug(f"Calling insert_myth_to_agent_memory for agent {agent_id}")
         insert_myth_to_agent_memory(agent_id, myth_matrix, mytheme_ids, myth_embedding)
         logger.info(f"Successfully inserted new myth for agent {agent_id}")
     except Exception as e:
         error_msg = f"Failed to insert new myth for agent {agent_id}: {str(e)}"
         logger.error(error_msg)
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Full exception details: {e}")
+        
+        # Log additional context about the data being inserted
+        try:
+            logger.error(f"Myth matrix info - Shape: {myth_matrix.shape}, Dtype: {myth_matrix.dtype}, Min: {myth_matrix.min()}, Max: {myth_matrix.max()}")
+        except Exception as matrix_error:
+            logger.error(f"Could not log myth matrix info: {matrix_error}")
+        
+        try:
+            logger.error(f"Mytheme IDs info - Length: {len(mytheme_ids)}, Type: {type(mytheme_ids)}, Values: {mytheme_ids}")
+        except Exception as ids_error:
+            logger.error(f"Could not log mytheme IDs info: {ids_error}")
+        
+        try:
+            logger.error(f"Myth embedding info - Shape: {myth_embedding.shape}, Dtype: {myth_embedding.dtype}, Min: {myth_embedding.min()}, Max: {myth_embedding.max()}")
+        except Exception as embedding_error:
+            logger.error(f"Could not log myth embedding info: {embedding_error}")
+        
         raise RuntimeError(error_msg) from e
 
 def update_myth_in_listener_memory(
@@ -57,12 +83,38 @@ def update_myth_in_listener_memory(
     retention: float):
     """Update an existing myth in the agent's memory."""
     logger.info(f"Updating myth {myth_id} in agent {agent_id}")
+    logger.debug(f"Myth matrix shape: {myth_matrix.shape if hasattr(myth_matrix, 'shape') else 'No shape'}")
+    logger.debug(f"Myth matrix type: {type(myth_matrix)}")
+    logger.debug(f"Mytheme IDs: {mytheme_ids}, type: {type(mytheme_ids)}")
+    logger.debug(f"Myth embedding shape: {myth_embedding.shape if hasattr(myth_embedding, 'shape') else 'No shape'}")
+    logger.debug(f"Retention value: {retention}, type: {type(retention)}")
+    
     try:
+        logger.debug(f"Calling update_myth_with_retention for agent {agent_id}, myth {myth_id}")
         update_myth_with_retention(agent_id, myth_id, myth_matrix, mytheme_ids, retention, myth_embedding)
         logger.info(f"Successfully updated myth {myth_id} in agent {agent_id}")
     except Exception as e:
         error_msg = f"Failed to update myth {myth_id} in agent {agent_id}: {str(e)}"
         logger.error(error_msg)
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Full exception details: {e}")
+        
+        # Log additional context about the data being updated
+        try:
+            logger.error(f"Myth matrix info - Shape: {myth_matrix.shape}, Dtype: {myth_matrix.dtype}, Min: {myth_matrix.min()}, Max: {myth_matrix.max()}")
+        except Exception as matrix_error:
+            logger.error(f"Could not log myth matrix info: {matrix_error}")
+        
+        try:
+            logger.error(f"Mytheme IDs info - Length: {len(mytheme_ids)}, Type: {type(mytheme_ids)}, Values: {mytheme_ids}")
+        except Exception as ids_error:
+            logger.error(f"Could not log mytheme IDs info: {ids_error}")
+        
+        try:
+            logger.error(f"Myth embedding info - Shape: {myth_embedding.shape}, Dtype: {myth_embedding.dtype}, Min: {myth_embedding.min()}, Max: {myth_embedding.max()}")
+        except Exception as embedding_error:
+            logger.error(f"Could not log myth embedding info: {embedding_error}")
+        
         raise RuntimeError(error_msg) from e
 
 

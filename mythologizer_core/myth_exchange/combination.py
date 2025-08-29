@@ -11,7 +11,7 @@ def combine_myths(
     listener_mytheme_ids: id_list,
     distance_to_listener_myth: float,
     *,
-    max_threshold_for_listener_myth: float = 0.7,
+    max_weight_for_combination_listener: float = 0.7,
 ) -> Tuple[Mythmatrix, id_list, Embedding]:
     """
     Combine two myths by sampling rows from speaker and listener, preserving per-role order,
@@ -22,8 +22,8 @@ def combine_myths(
         speaker_mytheme_ids: shape (N,)
         listener_matrix: shape (M, 2D+1) [embeddings | offsets | weights]
         listener_mytheme_ids: shape (M,)
-        distance_to_listener_myth: distance in [0, max_threshold_for_listener_myth]
-        max_threshold_for_listener_myth: threshold parameter for weighting
+            distance_to_listener_myth: distance in [0, max_weight_for_combination_listener]
+    max_weight_for_combination_listener: threshold parameter for weighting
 
     Returns:
         combined_matrix: stacked rows in merged order
@@ -32,7 +32,7 @@ def combine_myths(
     """
     # weights must sum to 1
     weight_listener, weight_speaker = get_combination_weights(
-        distance_to_listener_myth, max_threshold_for_listener_myth
+        distance_to_listener_myth, max_weight_for_combination_listener
     )
 
     n_s = len(speaker_matrix)
@@ -56,17 +56,29 @@ def combine_myths(
     indices_listener = np.sort(np.random.choice(n_l, size=k_l, replace=False)) if k_l > 0 else np.array([], dtype=int)
 
     # merge the two ordered index lists; must preserve per-role relative order
-    combined_indices = _combine_indices(indices_speaker, indices_listener)  # -> iterable of (role, old_index)
+    combined_indices = combine_indices(indices_speaker, indices_listener)  # -> iterable of (role, old_index)
 
     rows = []
     ids = []
     for role, old_index in combined_indices:
-        if role == "listener":
-            rows.append(listener_matrix[old_index])
-            ids.append(listener_mytheme_ids[old_index])
-        else:
-            rows.append(speaker_matrix[old_index])
-            ids.append(speaker_mytheme_ids[old_index])
+        try:
+            if role == "listener":
+                if old_index < len(listener_matrix):
+                    rows.append(listener_matrix[old_index])
+                    ids.append(listener_mytheme_ids[old_index])
+                else:
+                    logger.warning(f"Listener index {old_index} out of bounds for matrix of size {len(listener_matrix)}")
+            else:  # speaker
+                if old_index < len(speaker_matrix):
+                    rows.append(speaker_matrix[old_index])
+                    ids.append(speaker_mytheme_ids[old_index])
+                else:
+                    logger.warning(f"Speaker index {old_index} out of bounds for matrix of size {len(speaker_matrix)}")
+        except Exception as e:
+            logger.error(f"Error accessing {role} matrix at index {old_index}: {e}")
+            logger.error(f"Matrix sizes - listener: {len(listener_matrix)}, speaker: {len(speaker_matrix)}")
+            logger.error(f"Indices - listener: {indices_listener}, speaker: {indices_speaker}")
+            raise
 
     if len(rows) == 0:
         raise ValueError("No rows to combine")

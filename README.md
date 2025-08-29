@@ -90,9 +90,13 @@ A simulation framework for modeling cultural evolution through myth exchange bet
 - **Agent Attributes File**: Python file defining agent attributes (default: agent_attributes.py)
 - **Mythemes File**: Text file containing mythemes (default: mythemes.txt)
 - **Initial Cultures File**: Optional file for initial cultures
+
+### Epoch Settings
+
 - **Number of Epochs**: Number of simulation epochs to run (optional)
 - **Number of Interactions per Epoch**: Number of myth exchanges per epoch (default: 4)
 - **Max Number of Listeners per Interaction**: Maximum listeners per myth exchange (default: 3)
+- **Minimum Epoch Time**: Minimum time in seconds each epoch must run (default: 10)
 
 ### Myth Exchange Parameters
 
@@ -116,9 +120,11 @@ A simulation framework for modeling cultural evolution through myth exchange bet
 
 ### Parameter Effects
 
-#### Interaction Settings
+#### Epoch Settings
+- **Number of Epochs**: Controls total simulation duration (leave empty for infinite)
 - **Number of Interactions per Epoch**: Higher values create more myth exchanges per epoch, leading to faster cultural evolution
 - **Max Number of Listeners per Interaction**: Higher values allow myths to spread to more agents simultaneously, increasing myth propagation speed
+- **Minimum Epoch Time**: Ensures each epoch runs for at least this many seconds, useful for real-time monitoring or rate limiting
 
 #### Event and Culture Weights
 - Higher event weights make myths more influenced by current events

@@ -3,5 +3,19 @@
   "agent_attributes_file": "agent_attributes.py",
   "mythemes_file": "mythemes.txt",
   "initial_cultures_file": "inital_cultures.txt",
-  "epochs": "4"
+  "epochs": "",
+  "number_of_interactions": "4",
+  "max_number_of_listeners": "3",
+  "min_epoch_time": "",
+  "exit_on_fail": "true",
+  "event_weight": "0.0",
+  "culture_weight": "0.1",
+  "weight_of_attribute_embeddings": "0.3",
+  "new_myth_threshold": "0.8",
+  "retention_remember_factor": "0.1",
+  "retention_forget_factor": "0.05",
+  "max_weight_for_combination_listener": "0.5",
+  "mutation_probability_deletion": "0.1",
+  "mutation_probability_mutation": "0.7",
+  "mutation_probability_reordering": "0.3"
 }

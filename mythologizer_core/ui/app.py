@@ -51,13 +51,15 @@ def load_simulation_config() -> Dict[str, Any]:
         "epochs": "",
         "number_of_interactions": "4",
         "max_number_of_listeners": "3",
+        "min_epoch_time": "10",
+        "exit_on_fail": "true",
         "event_weight": "0.0",
         "culture_weight": "0.0",
         "weight_of_attribute_embeddings": "1.0",
         "new_myth_threshold": "0.5",
         "retention_remember_factor": "0.1",
         "retention_forget_factor": "0.05",
-        "max_threshold_for_listener_myth": "0.5",
+        "max_weight_for_combination_listener": "0.5",
         "mutation_probability_deletion": "0.2",
         "mutation_probability_mutation": "0.7",
         "mutation_probability_reordering": "0.3"
@@ -343,6 +345,8 @@ class SettingsView(ScrollableContainer):
             yield DbSettings()
             yield Label("Setup Settings", classes="section-header")
             yield SetupSettings()
+            yield Label("Epoch Settings", classes="section-header")
+            yield EpochSettings()
             yield Label("Myth Exchange Settings", classes="section-header")
             yield MythExchangeSettings()
             yield SettingsButtons()
@@ -395,9 +399,14 @@ class SettingsButtons(Static):
             agent_attributes_file = setup_settings.query_one("#agent_attributes_file").value
             mythemes_file = setup_settings.query_one("#mythemes_file").value
             initial_cultures_file = setup_settings.query_one("#initial_cultures_file").value
-            epochs = setup_settings.query_one("#epochs").value
-            number_of_interactions = setup_settings.query_one("#number_of_interactions").value
-            max_number_of_listeners = setup_settings.query_one("#max_number_of_listeners").value
+            
+            # Get epoch settings values
+            epoch_settings = settings_view.query_one(EpochSettings)
+            epochs = epoch_settings.query_one("#epochs").value
+            number_of_interactions = epoch_settings.query_one("#number_of_interactions").value
+            max_number_of_listeners = epoch_settings.query_one("#max_number_of_listeners").value
+            min_epoch_time = epoch_settings.query_one("#min_epoch_time").value
+            exit_on_fail = epoch_settings.query_one("#exit_on_fail").value
             
             # Get myth exchange settings values
             myth_exchange_settings = settings_view.query_one(MythExchangeSettings)
@@ -407,7 +416,7 @@ class SettingsButtons(Static):
             new_myth_threshold = myth_exchange_settings.query_one("#new_myth_threshold").value
             retention_remember_factor = myth_exchange_settings.query_one("#retention_remember_factor").value
             retention_forget_factor = myth_exchange_settings.query_one("#retention_forget_factor").value
-            max_threshold_for_listener_myth = myth_exchange_settings.query_one("#max_threshold_for_listener_myth").value
+            max_weight_for_combination_listener = myth_exchange_settings.query_one("#max_weight_for_combination_listener").value
             mutation_probability_deletion = myth_exchange_settings.query_one("#mutation_probability_deletion").value
             mutation_probability_mutation = myth_exchange_settings.query_one("#mutation_probability_mutation").value
             mutation_probability_reordering = myth_exchange_settings.query_one("#mutation_probability_reordering").value
@@ -429,25 +438,31 @@ class SettingsButtons(Static):
             set_key(".env", "POSTGRES_PASSWORD", db_password)
             set_key(".env", "POSTGRES_DB", db_name)
             
+            # Helper function to convert empty strings to None
+            def clean_value(value):
+                return value if value.strip() else ""
+            
             # Save simulation settings to JSON config file
             simulation_config = {
                 "embedding_model": embedding_model,
                 "agent_attributes_file": agent_attributes_file,
                 "mythemes_file": mythemes_file,
-                "initial_cultures_file": initial_cultures_file,
-                "epochs": epochs,
-                "number_of_interactions": number_of_interactions,
-                "max_number_of_listeners": max_number_of_listeners,
-                "event_weight": event_weight,
-                "culture_weight": culture_weight,
-                "weight_of_attribute_embeddings": weight_of_attribute_embeddings,
-                "new_myth_threshold": new_myth_threshold,
-                "retention_remember_factor": retention_remember_factor,
-                "retention_forget_factor": retention_forget_factor,
-                "max_threshold_for_listener_myth": max_threshold_for_listener_myth,
-                "mutation_probability_deletion": mutation_probability_deletion,
-                "mutation_probability_mutation": mutation_probability_mutation,
-                "mutation_probability_reordering": mutation_probability_reordering
+                "initial_cultures_file": clean_value(initial_cultures_file),
+                "epochs": clean_value(epochs),
+                "number_of_interactions": clean_value(number_of_interactions),
+                "max_number_of_listeners": clean_value(max_number_of_listeners),
+                "min_epoch_time": clean_value(min_epoch_time),
+                "exit_on_fail": clean_value(exit_on_fail),
+                "event_weight": clean_value(event_weight),
+                "culture_weight": clean_value(culture_weight),
+                "weight_of_attribute_embeddings": clean_value(weight_of_attribute_embeddings),
+                "new_myth_threshold": clean_value(new_myth_threshold),
+                "retention_remember_factor": clean_value(retention_remember_factor),
+                "retention_forget_factor": clean_value(retention_forget_factor),
+                "max_weight_for_combination_listener": clean_value(max_weight_for_combination_listener),
+                "mutation_probability_deletion": clean_value(mutation_probability_deletion),
+                "mutation_probability_mutation": clean_value(mutation_probability_mutation),
+                "mutation_probability_reordering": clean_value(mutation_probability_reordering)
             }
             save_simulation_config(simulation_config)
             
@@ -525,10 +540,24 @@ class SetupSettings(Static):
         yield Input(value=config.get("initial_cultures_file", ""), id="initial_cultures_file", classes="input-field")
         yield Label("Number of Epochs (optional)", classes="input-label")
         yield Input(value=config.get("epochs", ""), id="epochs", classes="input-field")
+
+
+class EpochSettings(Static):
+    """Epoch settings widget."""
+    def compose(self) -> ComposeResult:
+        # Load current configuration
+        config = load_simulation_config()
+        
+        yield Label("Number of Epochs (optional)", classes="input-label")
+        yield Input(value=config.get("epochs", ""), id="epochs", classes="input-field")
         yield Label("Number of Interactions per Epoch", classes="input-label")
         yield Input(value=config.get("number_of_interactions", "4"), id="number_of_interactions", classes="input-field")
         yield Label("Max Number of Listeners per Interaction", classes="input-label")
         yield Input(value=config.get("max_number_of_listeners", "3"), id="max_number_of_listeners", classes="input-field")
+        yield Label("Minimum Epoch Time (seconds)", classes="input-label")
+        yield Input(value=config.get("min_epoch_time", "10"), id="min_epoch_time", classes="input-field")
+        yield Label("Exit on Failure", classes="input-label")
+        yield Input(value=config.get("exit_on_fail", "true"), id="exit_on_fail", classes="input-field", placeholder="true/false")
 
 
 class MythExchangeSettings(Static):
@@ -548,8 +577,8 @@ class MythExchangeSettings(Static):
         yield Input(value=config.get("retention_remember_factor", "0.1"), id="retention_remember_factor", classes="input-field")
         yield Label("Retention Forget Factor", classes="input-label")
         yield Input(value=config.get("retention_forget_factor", "0.05"), id="retention_forget_factor", classes="input-field")
-        yield Label("Max Threshold for Listener Myth", classes="input-label")
-        yield Input(value=config.get("max_threshold_for_listener_myth", "0.5"), id="max_threshold_for_listener_myth", classes="input-field")
+        yield Label("Max Weight for Combination Listener", classes="input-label")
+        yield Input(value=config.get("max_weight_for_combination_listener", "0.5"), id="max_weight_for_combination_listener", classes="input-field")
         
         yield Label("Deletion Probability", classes="input-label")
         yield Input(value=config.get("mutation_probability_deletion", "0.2"), id="mutation_probability_deletion", classes="input-field")
@@ -605,6 +634,8 @@ class MythologizerApp(App):
     def __init__(self):
         super().__init__()
         self._shutdown_requested = False
+        self._simulation_running = False
+        self._graceful_shutdown = False
     
     def compose(self) -> ComposeResult:
         """Compose the app layout."""
@@ -619,12 +650,25 @@ class MythologizerApp(App):
     
     def exit(self, result=None) -> None:
         """Override exit to ensure proper cleanup."""
+        if self._simulation_running and not self._graceful_shutdown:
+            # Start graceful shutdown process
+            self._graceful_shutdown = True
+            self.notify("Finishing current epoch before exit...", severity="information")
+            # Don't call super().exit() yet - let the simulation finish
+            return
+        
         self._shutdown_requested = True
         super().exit(result)
     
     def on_key(self, event) -> None:
         """Handle keyboard events."""
         if event.key == "ctrl+q":
+            if self._simulation_running and not self._graceful_shutdown:
+                # Start graceful shutdown process
+                self._graceful_shutdown = True
+                self.notify("Finishing current epoch before exit...", severity="information")
+                return
+            
             self._shutdown_requested = True
             self.exit()
     
@@ -632,9 +676,20 @@ class MythologizerApp(App):
         """Check if the app is shutting down."""
         return self._shutdown_requested or not self.is_running
     
+    def set_simulation_running(self, running: bool) -> None:
+        """Set the simulation running state."""
+        self._simulation_running = running
+        if not running and self._graceful_shutdown:
+            # Simulation finished, now we can exit
+            self._shutdown_requested = True
+            super().exit()
+    
     @work
     async def run_setup_simulation(self, log_view: SimulationLogView) -> None:
         """Run setup simulation in background with logging."""
+        # Set simulation as running
+        self.set_simulation_running(True)
+        
         # Get the RichLog widget
         log_widget = log_view.query_one("#simulation_log")
         
@@ -732,10 +787,15 @@ class MythologizerApp(App):
         finally:
             # Clean up: remove our custom handler
             root_logger.removeHandler(handler)
+            # Set simulation as not running
+            self.set_simulation_running(False)
     
     @work
     async def run_simulation(self, log_view: SimulationLogView) -> None:
         """Run simulation in background with logging."""
+        # Set simulation as running
+        self.set_simulation_running(True)
+        
         # Get the RichLog widget
         log_widget = log_view.query_one("#simulation_log")
         
@@ -802,20 +862,58 @@ class MythologizerApp(App):
             agent_attributes = getattr(agent_attributes_module, "agent_attributes")
             logging.info(f"Loaded {len(agent_attributes)} agent attributes")
             
+            # Helper function to safely convert string to float with default
+            def safe_float(value, default):
+                if not value or value.strip() == "":
+                    return default
+                try:
+                    return float(value)
+                except ValueError:
+                    return default
+            
+            # Helper function to safely convert string to float with None for empty
+            def safe_float_optional(value):
+                if not value or value.strip() == "":
+                    return None
+                try:
+                    return float(value)
+                except ValueError:
+                    return None
+            
+            # Helper function to safely convert string to int with default
+            def safe_int(value, default):
+                if not value or value.strip() == "":
+                    return default
+                try:
+                    return int(value)
+                except ValueError:
+                    return default
+            
+            # Helper function to safely convert string to boolean with default
+            def safe_bool(value, default):
+                if not value or value.strip() == "":
+                    return default
+                try:
+                    return value.lower() in ['true', '1', 'yes', 'on']
+                except ValueError:
+                    return default
+            
             # Prepare myth exchange configuration
             myth_exchange_config = {
-                "number_of_interactions": int(config.get("number_of_interactions", "4")),
-                "max_number_of_listeners": int(config.get("max_number_of_listeners", "3")),
-                "event_weight": float(config.get("event_weight", "0.0")),
-                "culture_weight": float(config.get("culture_weight", "0.0")),
-                "weight_of_attribute_embeddings": float(config.get("weight_of_attribute_embeddings", "1.0")),
-                "new_myth_threshold": float(config.get("new_myth_threshold", "0.5")),
-                "retention_remember_factor": float(config.get("retention_remember_factor", "0.1")),
-                "retention_forget_factor": float(config.get("retention_forget_factor", "0.05")),
-                "max_threshold_for_listener_myth": float(config.get("max_threshold_for_listener_myth", "0.5")),
-                "mutation_probability_deletion": float(config.get("mutation_probability_deletion", "0.2")),
-                "mutation_probability_mutation": float(config.get("mutation_probability_mutation", "0.7")),
-                "mutation_probability_reordering": float(config.get("mutation_probability_reordering", "0.3"))
+                "number_of_interactions": safe_int(config.get("number_of_interactions", ""), 4),
+                "max_number_of_listeners": safe_int(config.get("max_number_of_listeners", ""), 3),
+                "min_epoch_time": safe_float_optional(config.get("min_epoch_time", "")),
+                "exit_on_fail": safe_bool(config.get("exit_on_fail", ""), True),
+                "event_weight": safe_float(config.get("event_weight", ""), 0.0),
+                "culture_weight": safe_float(config.get("culture_weight", ""), 0.0),
+                "weight_of_attribute_embeddings": safe_float(config.get("weight_of_attribute_embeddings", ""), 1.0),
+                "new_myth_threshold": safe_float(config.get("new_myth_threshold", ""), 0.5),
+                "retention_remember_factor": safe_float(config.get("retention_remember_factor", ""), 0.1),
+                "retention_forget_factor": safe_float(config.get("retention_forget_factor", ""), 0.05),
+                "max_weight_for_combination_listener": safe_float(config.get("max_weight_for_combination_listener", ""), 0.5),
+                "mutation_probability_deletion": safe_float(config.get("mutation_probability_deletion", ""), 0.2),
+                "mutation_probability_mutation": safe_float(config.get("mutation_probability_mutation", ""), 0.7),
+                "mutation_probability_reordering": safe_float(config.get("mutation_probability_reordering", ""), 0.3)
             }
             
             logging.info(f"Myth exchange configuration: {myth_exchange_config}")
@@ -847,6 +945,8 @@ class MythologizerApp(App):
         finally:
             # Clean up: remove our custom handler
             root_logger.removeHandler(handler)
+            # Set simulation as not running
+            self.set_simulation_running(False)
     
     def return_to_menu_after_simulation(self) -> None:
         """Return to the main menu after simulation completion."""

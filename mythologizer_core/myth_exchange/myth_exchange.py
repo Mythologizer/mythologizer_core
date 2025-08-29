@@ -15,6 +15,7 @@ from mythologizer_core.myth_exchange.mutation import mutate_myth
 from mythologizer_core.myth_exchange.myth_connectors import get_agent_myths, insert_new_myth, update_myth_in_listener_memory, update_speaker_retention
 from mythologizer_core.myth_exchange.offsets import get_culture_offsets, calculate_agent_offsets
 from mythologizer_core.myth_exchange.selection import select_speaker_myth, find_most_similar_listener_myth
+from mythologizer_core.myth_exchange.combination import combine_myths
 
 
 # Helper functions for the main tell_myth function
@@ -24,7 +25,6 @@ def _validate_input_parameters(
     speaker_agent_values: List[float]
 ) -> None:
     """Validate that input parameters have consistent lengths."""
-    logger = logging.getLogger(__name__)
     logger.debug(f"Validating parameter lengths - attributes: {len(embeddings_of_attribute_names)}, listener: {len(listener_agent_values)}, speaker: {len(speaker_agent_values)}")
     
     if (len(embeddings_of_attribute_names) != len(listener_agent_values) or 
@@ -51,16 +51,15 @@ def tell_myth(
     event_weight: float = 0.0,
     culture_weight: float = 0.0,
     weight_of_attribute_embeddings: float = 1.0,
-    new_myth_threshold: float = 0.5,
+    new_myth_threshold: float = 0.8,
     retention_remember_factor: float = 0.1,
     retention_forget_factor: float = 0.05,
-    max_threshold_for_listener_myth: float = 0.5,
+    max_weight_for_combination_listener: float = 0.8,
     mutation_probabilities: Tuple[float, float, float] = (0.2, 0.7, 0.3),
     myth_index_sample_function: Callable[[int], int] = standard_remember_function,
     distance_function: Callable[[Embedding, Embedding], float] = cosine_similarity,
     culture_embedding_dict: Dict[int, Embedding] = None
 ) -> None:
-    logger = logging.getLogger(__name__)
     logger.debug(f"tell_myth called with embeddings_of_attribute_names type: {type(embeddings_of_attribute_names)}")
     logger.debug(f"embeddings_of_attribute_names length: {len(embeddings_of_attribute_names) if embeddings_of_attribute_names else 'None'}")
     if embeddings_of_attribute_names:
@@ -88,7 +87,6 @@ def tell_myth(
         distance_function: Function to calculate similarity between embeddings
         culture_embedding_dict: Dictionary of culture embeddings (unused in current implementation)
     """
-    logger = logging.getLogger(__name__)
     logger.info(f"Starting myth exchange: speaker {speaker_agent_id} -> listener {listener_agent_id}")
     logger.debug(f"Event embedding provided: {event_embedding is not None}")
     logger.debug(f"Event weight: {event_weight}, Culture weight: {culture_weight}")
@@ -140,6 +138,10 @@ def tell_myth(
     
     try:
         chosen_speaker_myth_matrix, chosen_speaker_mytheme_ids = get_myth_matrices_and_embedding_ids(chosen_speaker_myth_id)
+        if isinstance(chosen_speaker_myth_matrix, str):
+            raise ValueError(f"Speaker myth matrix is string: {chosen_speaker_myth_matrix}")
+        if isinstance(chosen_speaker_mytheme_ids, str):
+            raise ValueError(f"Speaker mytheme IDs is string: {chosen_speaker_mytheme_ids}")
         logger.info(f"Selected speaker myth ID: {chosen_speaker_myth_id} with retention: {chosen_speaker_myth_retention}")
         logger.debug(f"Speaker myth has {len(chosen_speaker_mytheme_ids)} mythemes")
     except Exception as e:
@@ -205,59 +207,77 @@ def tell_myth(
     )
     logger.info(f"Selected listener myth at index {chosen_listener_myth_index} with distance: {distance_to_listener_myth}")
     
-    # Get the chosen listener myth details
-    chosen_listener_myth_id = listener_myth_ids[chosen_listener_myth_index]
-    chosen_listener_myth_retention = listener_retentions[chosen_listener_myth_index]
-    chosen_listener_myth_embedding = listener_myth_embeddings[chosen_listener_myth_index]
-    
-    try:
-        chosen_listener_myth_matrix, chosen_listener_mytheme_ids = get_myth_matrices_and_embedding_ids(chosen_listener_myth_id)
-        logger.info(f"Selected listener myth ID: {chosen_listener_myth_id} with retention: {chosen_listener_myth_retention}")
-        logger.debug(f"Listener myth has {len(chosen_listener_mytheme_ids)} mythemes")
-    except Exception as e:
-        error_msg = f"Failed to retrieve myth matrices for listener myth {chosen_listener_myth_id}: {str(e)}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg) from e
-    
-    # Mutate the listener's myth with their offset
-    logger.info("Mutating listener's myth with agent offset...")
-    mutated_listener_myth_matrix, mutated_listener_mytheme_ids, mutated_listener_myth_embedding = mutate_myth(
-        chosen_listener_myth_matrix, 
-        listener_offset, 
-        chosen_listener_mytheme_ids,
-        muation_probabilities=mutation_probabilities
-    )
-    logger.debug(f"Listener myth mutated successfully")
-    
-
-    if distance_to_listener_myth > new_myth_threshold:
-        # Combine the myths
-        logger.info("Combining speaker and listener myths...")
-        combined_myth_matrix, combined_mytheme_ids, combined_myth_embedding = combine_myths(
-            mutated_speaker_myth_matrix,
-            mutated_speaker_mytheme_ids,
-            mutated_listener_myth_matrix,
-            mutated_listener_mytheme_ids,
-            distance_to_listener_myth
-        )
-        retention_listener = chosen_listener_myth_retention + retention_remember_factor * 1.2 
-        logger.info(f"Combined myth created with listener retention: {retention_listener}")
+    # Check if listener has no myths (chosen_listener_myth_index == -1)
+    if chosen_listener_myth_index == -1:
+        logger.info("Listener has no myths, creating new myth from speaker's myth")
+        # Create a new myth for the listener based on the speaker's myth
         insert_new_myth(
             listener_agent_id,
-            combined_myth_matrix,
-            combined_mytheme_ids,
-            combined_myth_embedding
+            mutated_speaker_myth_matrix,
+            mutated_speaker_mytheme_ids,
+            mutated_speaker_myth_embedding
         )
+        logger.info(f"Created new myth for listener {listener_agent_id}")
     else:
-        retention_listener = 1.0
-        update_myth_in_listener_memory(
-            listener_agent_id,
-            chosen_listener_myth_id,
-            mutated_listener_myth_matrix,
-            mutated_listener_mytheme_ids,
-            mutated_listener_myth_embedding,
-            retention_listener
+        # Get the chosen listener myth details
+        chosen_listener_myth_id = listener_myth_ids[chosen_listener_myth_index]
+        chosen_listener_myth_retention = listener_retentions[chosen_listener_myth_index]
+        chosen_listener_myth_embedding = listener_myth_embeddings[chosen_listener_myth_index]
+        
+        try:
+            chosen_listener_myth_matrix, chosen_listener_mytheme_ids = get_myth_matrices_and_embedding_ids(chosen_listener_myth_id)
+            if isinstance(chosen_listener_myth_matrix, str):
+                raise ValueError(f"Listener myth matrix is string: {chosen_listener_myth_matrix}")
+            if isinstance(chosen_listener_mytheme_ids, str):
+                raise ValueError(f"Listener mytheme IDs is string: {chosen_listener_mytheme_ids}")
+            logger.info(f"Selected listener myth ID: {chosen_listener_myth_id} with retention: {chosen_listener_myth_retention}")
+            logger.debug(f"Listener myth has {len(chosen_listener_mytheme_ids)} mythemes")
+        except Exception as e:
+            error_msg = f"Failed to retrieve myth matrices for listener myth {chosen_listener_myth_id}: {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+        
+        # Mutate the listener's myth with their offset
+        logger.info("Mutating listener's myth with agent offset...")
+        mutated_listener_myth_matrix, mutated_listener_mytheme_ids, mutated_listener_myth_embedding = mutate_myth(
+            chosen_listener_myth_matrix, 
+            listener_offset, 
+            chosen_listener_mytheme_ids,
+            muation_probabilities=mutation_probabilities
         )
+        logger.debug(f"Listener myth mutated successfully")
+        
+
+        if distance_to_listener_myth > new_myth_threshold:
+            # Combine the myths
+            logger.info(f"Combining speaker and listener myths because distance {distance_to_listener_myth} is greater than new myth threshold {new_myth_threshold}")
+            combined_myth_matrix, combined_mytheme_ids, combined_myth_embedding = combine_myths(
+                mutated_speaker_myth_matrix,
+                mutated_speaker_mytheme_ids,
+                mutated_listener_myth_matrix,
+                mutated_listener_mytheme_ids,
+                distance_to_listener_myth,
+                max_weight_for_combination_listener=max_weight_for_combination_listener
+            )
+            retention_listener = chosen_listener_myth_retention + retention_remember_factor * 1.2 
+            logger.info(f"Combined myth created with listener retention: {retention_listener}")
+            insert_new_myth(
+                listener_agent_id,
+                combined_myth_matrix,
+                combined_mytheme_ids,
+                combined_myth_embedding
+            )
+        else:
+            logger.info(f"Distance to listener myth is less than new myth threshold, updating listener myth")
+            retention_listener = 1.0
+            update_myth_in_listener_memory(
+                listener_agent_id,
+                chosen_listener_myth_id,
+                mutated_listener_myth_matrix,
+                mutated_listener_mytheme_ids,
+                mutated_listener_myth_embedding,
+                retention_listener
+            )
 
 
 

@@ -36,6 +36,11 @@ def find_most_similar_listener_myth(
     distance_function: Callable[[Embedding, Embedding], float]
 ) -> Tuple[int, float]:
     """Find the most similar myth in the listener's memory."""
+    if not listener_myth_embeddings:
+        logger.info("Listener has no myths, will create a new myth")
+        # Return a special value to indicate we should create a new myth
+        return -1, 1.0  # -1 indicates no existing myth, 1.0 is maximum distance
+    
     distances = [
         distance_function(target_embedding, myth_embedding) 
         for myth_embedding in listener_myth_embeddings

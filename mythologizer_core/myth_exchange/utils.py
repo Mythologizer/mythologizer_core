@@ -6,7 +6,13 @@ from mythologizer_core.types import Embedding, Embeddings
 
 logger = logging.getLogger(__name__)
 
-def combine_indices(listener: list[int], speaker: list[int]) -> list[tuple[str, int]]:
+def combine_indices(listener, speaker) -> list[tuple[str, int]]:
+    # Convert to lists if they're numpy arrays
+    listener_list = listener.tolist() if hasattr(listener, 'tolist') else list(listener)
+    speaker_list = speaker.tolist() if hasattr(speaker, 'tolist') else list(speaker)
+    
+    logger.debug(f"combine_indices called with listener: {listener_list}, speaker: {speaker_list}")
+    
     out, nxt = [], {}
 
     def find(x):
@@ -17,11 +23,15 @@ def combine_indices(listener: list[int], speaker: list[int]) -> list[tuple[str, 
         out.append((role, i, x))     # keep original i, store x for sort
         nxt[x] = find(x + 1)
 
-    for i in listener: place(i, "listener")
-    for i in speaker:  place(i, "speaker")
+    for i in listener_list: 
+        place(i, "listener")
+    for i in speaker_list:  
+        place(i, "speaker")
 
     # sort by shifted index, return (role, original)
-    return [(r, i) for r, i, _ in sorted(out, key=lambda t: t[2])]
+    result = [(r, i) for r, i, _ in sorted(out, key=lambda t: t[2])]
+    logger.debug(f"combine_indices result: {result}")
+    return result
 
 
 def get_combination_weights(distance: float, listener_ratio_at_threshold: float) -> Tuple[float, float]:

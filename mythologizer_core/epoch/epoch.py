@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def run_epoch(
     agent_attributes: List[AgentAttribute],
-    embedding_function: Union[EmbeddingFunction, str],
+    embedding_function: EmbeddingFunction,
     number_of_interactions: int,
     max_number_of_listeners: int,
     myth_exchange_config: Optional[Dict[str, float]] = None
