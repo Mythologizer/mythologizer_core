@@ -39,7 +39,8 @@ def run_simulation(
     agent_attributes: List[AgentAttribute],
     embedding_function: Union[EmbeddingFunction, str],
     n_epochs: Optional[int] = None,
-    should_cancel: Optional[callable] = None):
+    should_cancel: Optional[callable] = None,
+    myth_exchange_config: Optional[dict] = None):
     _pre_simulation_checks(embedding_function)
 
     if n_epochs is None:
@@ -61,7 +62,7 @@ def run_simulation(
             break
             
         logger.info(f"Epoch {current_epoch} starting")
-        _run_epoch()
+        _run_epoch(agent_attributes, embedding_function, myth_exchange_config)
         logger.info(f"Epoch {current_epoch} finished")
         current_epoch += 1
         if n_epochs is not None and current_epoch > end_epoch:
@@ -71,8 +72,30 @@ def run_simulation(
         time.sleep(3)
 
 
-def _run_epoch():
+def _run_epoch(agent_attributes: List[AgentAttribute], embedding_function: Union[EmbeddingFunction, str], myth_exchange_config: Optional[dict] = None):
     logger.info("Running epoch")
+    
+    # Import the run_epoch function
+    from mythologizer_core.epoch.epoch import run_epoch
+    
+    # Get values from configuration or use defaults
+    if myth_exchange_config:
+        number_of_interactions = myth_exchange_config.get("number_of_interactions", 4)
+        max_number_of_listeners = myth_exchange_config.get("max_number_of_listeners", 3)
+    else:
+        number_of_interactions = 4
+        max_number_of_listeners = 3
+    
+    logger.info(f"Running epoch with {number_of_interactions} interactions, max {max_number_of_listeners} listeners per interaction")
+    
+    # Run the epoch with myth exchange configuration
+    run_epoch(
+        agent_attributes=agent_attributes,
+        embedding_function=embedding_function,
+        number_of_interactions=number_of_interactions,
+        max_number_of_listeners=max_number_of_listeners,
+        myth_exchange_config=myth_exchange_config
+    )
 
 
 

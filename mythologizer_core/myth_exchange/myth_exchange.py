@@ -54,6 +54,8 @@ def tell_myth(
     new_myth_threshold: float = 0.5,
     retention_remember_factor: float = 0.1,
     retention_forget_factor: float = 0.05,
+    max_threshold_for_listener_myth: float = 0.5,
+    mutation_probabilities: Tuple[float, float, float] = (0.2, 0.7, 0.3),
     myth_index_sample_function: Callable[[int], int] = standard_remember_function,
     distance_function: Callable[[Embedding, Embedding], float] = cosine_similarity,
     culture_embedding_dict: Dict[int, Embedding] = None
@@ -186,7 +188,8 @@ def tell_myth(
         mutated_speaker_myth_matrix, mutated_speaker_mytheme_ids, mutated_speaker_myth_embedding = mutate_myth(
             chosen_speaker_myth_matrix, 
             speaker_offset, 
-            chosen_speaker_mytheme_ids
+            chosen_speaker_mytheme_ids,
+            muation_probabilities=mutation_probabilities
         )
     except Exception as e:
         logger.error(f"Error in mutate_myth: {str(e)}")
@@ -221,7 +224,8 @@ def tell_myth(
     mutated_listener_myth_matrix, mutated_listener_mytheme_ids, mutated_listener_myth_embedding = mutate_myth(
         chosen_listener_myth_matrix, 
         listener_offset, 
-        chosen_listener_mytheme_ids
+        chosen_listener_mytheme_ids,
+        muation_probabilities=mutation_probabilities
     )
     logger.debug(f"Listener myth mutated successfully")
     

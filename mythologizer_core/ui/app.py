@@ -48,7 +48,19 @@ def load_simulation_config() -> Dict[str, Any]:
         "agent_attributes_file": "agent_attributes.py",
         "mythemes_file": "mythemes.txt",
         "initial_cultures_file": "",
-        "epochs": ""
+        "epochs": "",
+        "number_of_interactions": "4",
+        "max_number_of_listeners": "3",
+        "event_weight": "0.0",
+        "culture_weight": "0.0",
+        "weight_of_attribute_embeddings": "1.0",
+        "new_myth_threshold": "0.5",
+        "retention_remember_factor": "0.1",
+        "retention_forget_factor": "0.05",
+        "max_threshold_for_listener_myth": "0.5",
+        "mutation_probability_deletion": "0.2",
+        "mutation_probability_mutation": "0.7",
+        "mutation_probability_reordering": "0.3"
     }
 
 def save_simulation_config(config: Dict[str, Any]) -> None:
@@ -327,8 +339,12 @@ class SettingsView(ScrollableContainer):
     """Settings view widget."""
     def compose(self) -> ComposeResult:
         with Container(classes="settings-container"):
+            yield Label("Database Settings", classes="section-header")
             yield DbSettings()
+            yield Label("Setup Settings", classes="section-header")
             yield SetupSettings()
+            yield Label("Myth Exchange Settings", classes="section-header")
+            yield MythExchangeSettings()
             yield SettingsButtons()
 
 
@@ -380,6 +396,21 @@ class SettingsButtons(Static):
             mythemes_file = setup_settings.query_one("#mythemes_file").value
             initial_cultures_file = setup_settings.query_one("#initial_cultures_file").value
             epochs = setup_settings.query_one("#epochs").value
+            number_of_interactions = setup_settings.query_one("#number_of_interactions").value
+            max_number_of_listeners = setup_settings.query_one("#max_number_of_listeners").value
+            
+            # Get myth exchange settings values
+            myth_exchange_settings = settings_view.query_one(MythExchangeSettings)
+            event_weight = myth_exchange_settings.query_one("#event_weight").value
+            culture_weight = myth_exchange_settings.query_one("#culture_weight").value
+            weight_of_attribute_embeddings = myth_exchange_settings.query_one("#weight_of_attribute_embeddings").value
+            new_myth_threshold = myth_exchange_settings.query_one("#new_myth_threshold").value
+            retention_remember_factor = myth_exchange_settings.query_one("#retention_remember_factor").value
+            retention_forget_factor = myth_exchange_settings.query_one("#retention_forget_factor").value
+            max_threshold_for_listener_myth = myth_exchange_settings.query_one("#max_threshold_for_listener_myth").value
+            mutation_probability_deletion = myth_exchange_settings.query_one("#mutation_probability_deletion").value
+            mutation_probability_mutation = myth_exchange_settings.query_one("#mutation_probability_mutation").value
+            mutation_probability_reordering = myth_exchange_settings.query_one("#mutation_probability_reordering").value
             
             # Validate that required database fields are not empty
             if not db_host or not db_user or not db_name:
@@ -404,7 +435,19 @@ class SettingsButtons(Static):
                 "agent_attributes_file": agent_attributes_file,
                 "mythemes_file": mythemes_file,
                 "initial_cultures_file": initial_cultures_file,
-                "epochs": epochs
+                "epochs": epochs,
+                "number_of_interactions": number_of_interactions,
+                "max_number_of_listeners": max_number_of_listeners,
+                "event_weight": event_weight,
+                "culture_weight": culture_weight,
+                "weight_of_attribute_embeddings": weight_of_attribute_embeddings,
+                "new_myth_threshold": new_myth_threshold,
+                "retention_remember_factor": retention_remember_factor,
+                "retention_forget_factor": retention_forget_factor,
+                "max_threshold_for_listener_myth": max_threshold_for_listener_myth,
+                "mutation_probability_deletion": mutation_probability_deletion,
+                "mutation_probability_mutation": mutation_probability_mutation,
+                "mutation_probability_reordering": mutation_probability_reordering
             }
             save_simulation_config(simulation_config)
             
@@ -482,6 +525,38 @@ class SetupSettings(Static):
         yield Input(value=config.get("initial_cultures_file", ""), id="initial_cultures_file", classes="input-field")
         yield Label("Number of Epochs (optional)", classes="input-label")
         yield Input(value=config.get("epochs", ""), id="epochs", classes="input-field")
+        yield Label("Number of Interactions per Epoch", classes="input-label")
+        yield Input(value=config.get("number_of_interactions", "4"), id="number_of_interactions", classes="input-field")
+        yield Label("Max Number of Listeners per Interaction", classes="input-label")
+        yield Input(value=config.get("max_number_of_listeners", "3"), id="max_number_of_listeners", classes="input-field")
+
+
+class MythExchangeSettings(Static):
+    """Myth exchange settings widget."""
+    def compose(self) -> ComposeResult:
+        # Load current configuration
+        config = load_simulation_config()    
+        yield Label("Event Weight", classes="input-label")
+        yield Input(value=config.get("event_weight", "0.0"), id="event_weight", classes="input-field")
+        yield Label("Culture Weight", classes="input-label")
+        yield Input(value=config.get("culture_weight", "0.0"), id="culture_weight", classes="input-field")
+        yield Label("Weight of Attribute Embeddings", classes="input-label")
+        yield Input(value=config.get("weight_of_attribute_embeddings", "1.0"), id="weight_of_attribute_embeddings", classes="input-field")
+        yield Label("New Myth Threshold", classes="input-label")
+        yield Input(value=config.get("new_myth_threshold", "0.5"), id="new_myth_threshold", classes="input-field")
+        yield Label("Retention Remember Factor", classes="input-label")
+        yield Input(value=config.get("retention_remember_factor", "0.1"), id="retention_remember_factor", classes="input-field")
+        yield Label("Retention Forget Factor", classes="input-label")
+        yield Input(value=config.get("retention_forget_factor", "0.05"), id="retention_forget_factor", classes="input-field")
+        yield Label("Max Threshold for Listener Myth", classes="input-label")
+        yield Input(value=config.get("max_threshold_for_listener_myth", "0.5"), id="max_threshold_for_listener_myth", classes="input-field")
+        
+        yield Label("Deletion Probability", classes="input-label")
+        yield Input(value=config.get("mutation_probability_deletion", "0.2"), id="mutation_probability_deletion", classes="input-field")
+        yield Label("Mutation Probability", classes="input-label")
+        yield Input(value=config.get("mutation_probability_mutation", "0.7"), id="mutation_probability_mutation", classes="input-field")
+        yield Label("Reordering Probability", classes="input-label")
+        yield Input(value=config.get("mutation_probability_reordering", "0.3"), id="mutation_probability_reordering", classes="input-field")
 
 
 class DbSettings(Static):
@@ -727,6 +802,24 @@ class MythologizerApp(App):
             agent_attributes = getattr(agent_attributes_module, "agent_attributes")
             logging.info(f"Loaded {len(agent_attributes)} agent attributes")
             
+            # Prepare myth exchange configuration
+            myth_exchange_config = {
+                "number_of_interactions": int(config.get("number_of_interactions", "4")),
+                "max_number_of_listeners": int(config.get("max_number_of_listeners", "3")),
+                "event_weight": float(config.get("event_weight", "0.0")),
+                "culture_weight": float(config.get("culture_weight", "0.0")),
+                "weight_of_attribute_embeddings": float(config.get("weight_of_attribute_embeddings", "1.0")),
+                "new_myth_threshold": float(config.get("new_myth_threshold", "0.5")),
+                "retention_remember_factor": float(config.get("retention_remember_factor", "0.1")),
+                "retention_forget_factor": float(config.get("retention_forget_factor", "0.05")),
+                "max_threshold_for_listener_myth": float(config.get("max_threshold_for_listener_myth", "0.5")),
+                "mutation_probability_deletion": float(config.get("mutation_probability_deletion", "0.2")),
+                "mutation_probability_mutation": float(config.get("mutation_probability_mutation", "0.7")),
+                "mutation_probability_reordering": float(config.get("mutation_probability_reordering", "0.3"))
+            }
+            
+            logging.info(f"Myth exchange configuration: {myth_exchange_config}")
+            
             # Call run_simulation
             logging.info("Calling run_simulation...")
             result = await asyncio.to_thread(
@@ -734,7 +827,8 @@ class MythologizerApp(App):
                 embedding_function=config["embedding_model"],
                 agent_attributes=agent_attributes, 
                 n_epochs=epochs,
-                should_cancel=self.is_shutting_down
+                should_cancel=self.is_shutting_down,
+                myth_exchange_config=myth_exchange_config
             )
             
             logging.info("Simulation completed successfully!")

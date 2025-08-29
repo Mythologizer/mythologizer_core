@@ -96,7 +96,8 @@ def process_interaction(
     agent_indices: id_list,
     embeddings_of_attribute_names: Embeddings,
     embedding_function: Union[EmbeddingFunction, str],
-    culture_embedding_dict: Dict[id_type, Embedding]
+    culture_embedding_dict: Dict[id_type, Embedding],
+    myth_exchange_config: Dict[str, float] = None
 ) -> None:
     """
     Process a single interaction by telling myths between agents.
@@ -134,6 +135,21 @@ def process_interaction(
             logger.debug(f"Telling myth from speaker {interaction.speaker} to listener {listener_id}")
             
             try:
+                # Use default values if myth_exchange_config is None
+                if myth_exchange_config is None:
+                    myth_exchange_config = {
+                        "event_weight": 0.0,
+                        "culture_weight": 0.0,
+                        "weight_of_attribute_embeddings": 1.0,
+                        "new_myth_threshold": 0.5,
+                        "retention_remember_factor": 0.1,
+                        "retention_forget_factor": 0.05,
+                        "max_threshold_for_listener_myth": 0.5,
+                        "mutation_probability_deletion": 0.2,
+                        "mutation_probability_mutation": 0.7,
+                        "mutation_probability_reordering": 0.3
+                    }
+                
                 tell_myth(
                     listener_agent_id=listener_id,
                     speaker_agent_id=interaction.speaker,
@@ -141,6 +157,18 @@ def process_interaction(
                     speaker_agent_values=speaker_agent_values,
                     embeddings_of_attribute_names=embeddings_of_attribute_names,
                     embedding_function=embedding_function,
+                    event_weight=myth_exchange_config.get("event_weight", 0.0),
+                    culture_weight=myth_exchange_config.get("culture_weight", 0.0),
+                    weight_of_attribute_embeddings=myth_exchange_config.get("weight_of_attribute_embeddings", 1.0),
+                    new_myth_threshold=myth_exchange_config.get("new_myth_threshold", 0.5),
+                    retention_remember_factor=myth_exchange_config.get("retention_remember_factor", 0.1),
+                    retention_forget_factor=myth_exchange_config.get("retention_forget_factor", 0.05),
+                    max_threshold_for_listener_myth=myth_exchange_config.get("max_threshold_for_listener_myth", 0.5),
+                    mutation_probabilities=(
+                        myth_exchange_config.get("mutation_probability_deletion", 0.2),
+                        myth_exchange_config.get("mutation_probability_mutation", 0.7),
+                        myth_exchange_config.get("mutation_probability_reordering", 0.3)
+                    ),
                     culture_embedding_dict=culture_embedding_dict
                 )
                 logger.debug(f"Successfully told myth to listener {listener_id}")

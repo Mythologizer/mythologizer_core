@@ -66,12 +66,17 @@ Input {
 
 }
 
-DbSettings, SetupSettings {
+DbSettings, SetupSettings, MythExchangeSettings {
     layout: grid;
     grid-size: 2;
+    align: center middle;
 }
 
 SetupSettings {
+    margin-top: 2
+}
+
+MythExchangeSettings {
     margin-top: 2
 }
 
@@ -85,8 +90,8 @@ SettingsView {
 }
 
 .settings-container {
-    width: 60;
-    background: blue;
+    width: 100;
+    align: center middle;
     height: auto;
 }
 
@@ -97,8 +102,20 @@ SettingsButtons {
 }
 
 
-.input-label {
+.section-header {
     width: 100%;
+    height: auto;
+    text-align: center;
+    margin-top: 2;
+    margin-bottom: 1;
+    text-style: bold;
+    color: white;
+    border-bottom: solid white;
+    padding-bottom: 1;
+}
+
+.input-label {
+    width: 1fr;
     height: 100%;
     content-align: left middle;
 
@@ -124,6 +141,10 @@ SettingsButtons {
 
 .separator {
     width: auto;
+}
+
+.input-field{
+    width: 30;
 }
 
 .footer-text {

@@ -20,7 +20,8 @@ def run_epoch(
     agent_attributes: List[AgentAttribute],
     embedding_function: Union[EmbeddingFunction, str],
     number_of_interactions: int,
-    max_number_of_listeners: int
+    max_number_of_listeners: int,
+    myth_exchange_config: Optional[Dict[str, float]] = None
 ) -> None:
     """
     Run a complete epoch with agent attribute updates and myth exchanges.
@@ -69,7 +70,8 @@ def run_epoch(
                     agent_indices,
                     embeddings_of_attribute_names,
                     embedding_function,
-                    culture_embedding_dict
+                    culture_embedding_dict,
+                    myth_exchange_config
                 )
                 successful_interactions += 1
                 logger.info(f"Successfully processed interaction {i+1}")
