@@ -127,8 +127,6 @@ def update_speaker_retention(
     retention_forget_factor: float
 ) -> None:
     """Update the speaker's myth retention values."""
-    logger = logging.getLogger(__name__)
-    
     logger.info(f"Updating speaker {speaker_agent_id} retention values")
     logger.debug(f"Original retentions: {retentions}")
     logger.debug(f"Chosen myth index: {chosen_myth_index}")

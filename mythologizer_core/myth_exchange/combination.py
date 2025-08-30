@@ -1,8 +1,11 @@
 from typing import Tuple
 import numpy as np
+import logging
 from mythologizer_core.types import id_list, Mythmatrix, Embedding
 from mythicalgebra import compute_myth_embedding
 from mythologizer_core.myth_exchange.utils import get_combination_weights, combine_indices
+
+logger = logging.getLogger(__name__)
 
 def combine_myths(
     speaker_matrix: Mythmatrix,

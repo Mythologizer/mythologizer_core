@@ -49,7 +49,7 @@ def setup_simulation(
     embedding_function: EmbeddingFunction | str,
     mythemes: List[str] | str,
     agent_attributes: List[AgentAttribute],
-    inital_cultures: Optional[List[Tuple[str, str]]] | str = None
+    initial_cultures: Optional[List[Tuple[str, str]]] | str = None
 ) -> None:
     """
     Set up the simulation environment with embeddings and agent attributes.
@@ -104,18 +104,33 @@ def setup_simulation(
         insert_agent_attribute_defs(agent_attributes)
         logger.info(f"Successfully inserted {len(agent_attributes)} agent attribute definitions")
 
-        # Process inital cultures
-        if inital_cultures:
-            if isinstance(inital_cultures, str):
-                with open(inital_cultures, "r") as f:
-                    inital_cultures = f.readlines()
-                inital_cultures = [culture.strip() for culture in inital_cultures]
-                inital_cultures = [(culture.split(";")[0], culture.split(";")[1]) for culture in inital_cultures]
-                logger.info(f"Loaded inital cultures: {inital_cultures}")
+        # Process initial cultures
+        if initial_cultures:
+            if isinstance(initial_cultures, str):
+                with open(initial_cultures, "r") as f:
+                    initial_cultures = f.readlines()
+                initial_cultures = [culture.strip() for culture in initial_cultures]
+                
+                # Validate that each line contains a semicolon separator
+                validated_cultures = []
+                for i, culture in enumerate(initial_cultures):
+                    if not culture:  # Skip empty lines
+                        continue
+                    parts = culture.split(";")
+                    if len(parts) != 2:
+                        logger.warning(f"Skipping invalid culture format at line {i+1}: '{culture}'. Expected format: 'name;description'")
+                        continue
+                    validated_cultures.append((parts[0], parts[1]))
+                
+                initial_cultures = validated_cultures
+                logger.info(f"Loaded {len(initial_cultures)} valid initial cultures")
 
-            logger.info("Inserting inital cultures...")
-            insert_cultures_bulk(inital_cultures)
-            logger.info(f"Successfully inserted {len(inital_cultures)} inital cultures")
+            if initial_cultures:  # Only insert if we have valid cultures
+                logger.info("Inserting initial cultures...")
+                insert_cultures_bulk(initial_cultures)
+                logger.info(f"Successfully inserted {len(initial_cultures)} initial cultures")
+            else:
+                logger.info("No valid initial cultures to insert")
         
         logger.info("Simulation setup completed successfully")
         

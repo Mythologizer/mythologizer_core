@@ -9,12 +9,19 @@ import logging
 import numpy as np
 from typing import List, Union, Optional
 import time
+from dotenv import load_dotenv, find_dotenv
 
 
 logger = logging.getLogger(__name__)
 
 def _pre_simulation_checks(embedding_function: Union[EmbeddingFunction, str]):
     logger.info("Setting up simulation")
+    
+    # Load environment variables for database connection
+    logger.info("Loading environment variables...")
+    load_dotenv(find_dotenv())
+    logger.info("Environment variables loaded")
+    
     logger.info("Checking DB connection")
     connection = ping_db_basic()
     if connection is False:

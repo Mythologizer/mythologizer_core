@@ -16,7 +16,6 @@ def get_culture_offsets(
     culture_weight: float
 ) -> List[Embedding]:
     """Calculate culture offsets for both agents."""
-    logger = logging.getLogger(__name__)
     
     try:
         agents_culture_ids = get_agents_cultures_ids_bulk(agent_ids)

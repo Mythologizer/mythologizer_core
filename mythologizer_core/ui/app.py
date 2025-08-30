@@ -768,7 +768,7 @@ class MythologizerApp(App):
                 embedding_function=config["embedding_model"],
                 mythemes=config["mythemes_file"],
                 agent_attributes=agent_attributes,
-                inital_cultures=initial_cultures_file if initial_cultures_file else None
+                initial_cultures=initial_cultures_file if initial_cultures_file else None
             )
             
             logging.info("Setup simulation completed successfully!")
