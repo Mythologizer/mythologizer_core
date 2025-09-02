@@ -83,8 +83,8 @@ MythExchangeSettings {
 SettingsView {
     width: 100%;
     align: center middle;
-    scrollbar-background: rgb(1, 1, 134);
-    scrollbar-corner-color: rgb(1, 1, 134);
+    scrollbar-background: rgb(0, 0, 0);
+    scrollbar-corner-color: rgb(0, 0, 0);
     scrollbar-color: white;
     scrollbar-gutter: auto
 }
@@ -167,8 +167,8 @@ SimulationLogView > RichLog {
     height: 100%;
     border: none;
     background: black;
-    scrollbar-background: rgb(1, 1, 134);
-    scrollbar-corner-color: rgb(1, 1, 134);
+    scrollbar-background: rgb(0, 0, 0);
+    scrollbar-corner-color: rgb(0, 0, 0);
     scrollbar-color: white;
     scrollbar-gutter: auto
 
