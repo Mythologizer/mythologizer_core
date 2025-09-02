@@ -6,24 +6,24 @@
 }
 
 Button {
-    background: blue;
+    background: black;
     border: solid white;
 }
 
 Button:focus {
     background: rgb(255, 255, 255);
-    border: solid blue;
-    color: blue;
+    border: solid black;
+    color: black;
 }
 
 Button:can-focus:hover {
     background: rgb(255, 255, 255);
-    border: solid blue;
-    color: blue;
+    border: solid black;
+    color: black;
 }
 
 Screen {
-    background: blue;
+    background: black;
 }
 
 SecondaryHeader Static {
@@ -60,7 +60,7 @@ Footer {
 Input {
     width: 100%;
     height: 3;
-    background: blue;
+    background: black;
     text-align: left;
     border: solid white;
 
@@ -166,7 +166,7 @@ SimulationLogView {
 SimulationLogView > RichLog {
     height: 100%;
     border: none;
-    background: blue;
+    background: black;
     scrollbar-background: rgb(1, 1, 134);
     scrollbar-corner-color: rgb(1, 1, 134);
     scrollbar-color: white;
